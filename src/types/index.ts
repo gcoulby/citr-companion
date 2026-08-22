@@ -47,7 +47,17 @@ export interface NodeLocation {
 export interface ClueNodeMeta {
   rank: string; // 'A'-'10'
   status: 'established' | 'strengthened' | 'truth' | 'falseLead';
-  card?: PlayingCard; // the literal card drawn that established this clue set
+  cards?: PlayingCard[]; // every literal card drawn into this clue set, oldest first
+}
+
+// Reads a clue's cards, tolerating cases saved before `cards` replaced the
+// older single `card` field — so nodes created before that change still
+// show their card instead of going blank.
+export function clueCardsOf(clue: ClueNodeMeta | undefined): PlayingCard[] {
+  if (!clue) return [];
+  if (clue.cards) return clue.cards;
+  const legacyCard = (clue as ClueNodeMeta & { card?: PlayingCard }).card;
+  return legacyCard ? [legacyCard] : [];
 }
 
 export interface TruthNodeMeta {

@@ -14,8 +14,8 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { PlayingCardView } from '../play/PlayingCard';
 import type { NodeAttachment, DocumentRef } from '../../types';
-import { CASE_NOTES_ID } from '../../types';
-import type { ThreatKind } from '../../game/types';
+import { CASE_NOTES_ID, clueCardsOf } from '../../types';
+import type { ThreatKind, Suit } from '../../game/types';
 
 interface Props {
   nodeId: string;
@@ -41,6 +41,10 @@ export function NodePanel({ nodeId, onClose, onOpenDocument }: Props) {
   const allNodes = useGraphStore((s) => s.nodes);
   const renameThreat = useMysteryStore((s) => s.renameThreat);
   const updateThreat = useMysteryStore((s) => s.updateThreat);
+  // Read live from mysteryStore (the source of truth) rather than the
+  // node's own bridged snapshot, which otherwise goes stale the moment the
+  // clue set changes again without another "add to board" round-trip.
+  const liveClueSet = useMysteryStore((s) => (node?.clue ? s.clueSets[node.clue.rank] : undefined));
   const backlinks = useBacklinksStore((s) => s.index[nodeId] ?? EMPTY_BACKLINKS);
 
   const [newTag, setNewTag] = useState('');
@@ -179,12 +183,21 @@ export function NodePanel({ nodeId, onClose, onOpenDocument }: Props) {
           {/* Mystery metadata — populated by the Play panel, editable here */}
           {(node.clue || node.truth || node.threat) && (
             <div className="px-3 py-2.5 rounded border border-border bg-background text-[11px] space-y-2">
-              {node.clue && (
-                <div className="flex items-start gap-2">
-                  {node.clue.card && <PlayingCardView card={node.clue.card} size="sm" />}
-                  <div className="font-mono text-foreground">Clue {node.clue.rank} · <span className="text-muted-foreground">{node.clue.status}</span></div>
-                </div>
-              )}
+              {node.clue && (() => {
+                const clueCards = liveClueSet?.cards ?? clueCardsOf(node.clue);
+                return (
+                  <div className="flex items-start gap-2">
+                    {clueCards.length > 0 && (
+                      <PlayingCardView
+                        card={clueCards[clueCards.length - 1]}
+                        suits={clueCards.map((c) => c.suit).filter((s): s is Suit => s !== null)}
+                        size="sm"
+                      />
+                    )}
+                    <div className="font-mono text-foreground">Clue {node.clue.rank} · <span className="text-muted-foreground">{node.clue.status}</span></div>
+                  </div>
+                );
+              })()}
               {node.truth && (
                 <div className="flex items-start gap-2">
                   {node.truth.card && <PlayingCardView card={node.truth.card} size="sm" />}

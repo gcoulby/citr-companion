@@ -182,7 +182,6 @@ export function MysteryTab() {
     const cs = m.clueSets[rank];
     if (!cs) return;
     if (cs.boardNodeId) return;
-    const card = cs.cards[cs.cards.length - 1];
     const node = addNode({
       label: `Clue ${rank}`,
       summary: cs.description,
@@ -190,7 +189,7 @@ export function MysteryTab() {
       hasContent: false,
       properties: {},
       nodeType: 'clue',
-      clue: { rank, status: cs.status, card },
+      clue: { rank, status: cs.status, cards: cs.cards },
     });
     m.addClueToBoard(rank, node.id);
   };
@@ -463,7 +462,13 @@ export function MysteryTab() {
           {clueSetList.map((cs) => (
             <div key={cs.id} className="p-2 rounded border border-border bg-background">
               <div className="flex items-start gap-2 mb-1.5">
-                {cs.cards.length > 0 && <PlayingCardView card={cs.cards[cs.cards.length - 1]} size="sm" />}
+                {cs.cards.length > 0 && (
+                  <PlayingCardView
+                    card={cs.cards[cs.cards.length - 1]}
+                    suits={cs.cards.map((c) => c.suit).filter((s): s is Suit => s !== null)}
+                    size="sm"
+                  />
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-1">
                     <span className="text-[11px] font-mono text-foreground">Clue {cs.rank}</span>

@@ -46,8 +46,7 @@ const STAGE_ORDER: InvestigationStage[] = ['infiltration', 'discovery', 'acquisi
 // even once the set is strengthened with another card or resolved.
 function syncBoardClueNode(cs: ClueSet) {
   if (!cs.boardNodeId) return;
-  const card = cs.cards[cs.cards.length - 1];
-  useGraphStore.getState().updateNode(cs.boardNodeId, { clue: { rank: cs.rank, status: cs.status, card } });
+  useGraphStore.getState().updateNode(cs.boardNodeId, { clue: { rank: cs.rank, status: cs.status, cards: cs.cards } });
 }
 
 export type ClueDrawResult =
