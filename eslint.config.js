@@ -20,4 +20,13 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // shadcn/ui generated components — canonical output of `shadcn add`, not
+    // hand-authored. They intentionally co-export cva variant helpers
+    // alongside the component, which trips react-refresh's single-export rule.
+    files: ['src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

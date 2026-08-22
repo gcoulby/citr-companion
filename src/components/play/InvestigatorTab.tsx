@@ -1,7 +1,10 @@
-import { useState } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { nanoid } from 'nanoid';
+import { Plus, Trash2, X, ImagePlus } from 'lucide-react';
 import { useInvestigatorStore } from '../../store/investigatorStore';
 import { ATTRIBUTES, type Attribute } from '../../game/types';
+import { assetMap } from '../../hooks/useAutoSave';
+import { cacheAsset, getCachedAsset } from '../../lib/assetCache';
 import { SectionLabel, Badge, SmallButton, TextInput } from './ui';
 
 const ATTRIBUTE_LABELS: Record<Attribute, string> = { power: 'Power', insight: 'Insight', method: 'Method' };
@@ -11,9 +14,50 @@ export function InvestigatorTab() {
   const [newObligation, setNewObligation] = useState('');
   const [newKeyword, setNewKeyword] = useState('');
   const [newKeywordSignature, setNewKeywordSignature] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const portraitInputRef = useRef<HTMLInputElement>(null);
+  const portraitUrl = inv.portrait ? getCachedAsset(inv.portrait) : undefined;
+
+  const uploadPortrait = async (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    const ext = file.name.split('.').pop() ?? 'jpg';
+    const assetId = `${nanoid()}.${ext}`;
+    const buffer = await file.arrayBuffer();
+    assetMap.set(assetId, buffer);
+    cacheAsset(assetId, buffer, file.type);
+    inv.setPortrait(assetId);
+  };
 
   return (
     <div className="p-4 space-y-5">
+      <div>
+        <SectionLabel>Portrait</SectionLabel>
+        {portraitUrl ? (
+          <div className="relative group w-20 h-20 rounded-full overflow-hidden border border-border">
+            <img src={portraitUrl} alt="" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+              <button onClick={() => portraitInputRef.current?.click()} title="Replace" className="text-foreground hover:text-primary"><ImagePlus size={13} /></button>
+              <button onClick={() => inv.setPortrait(undefined)} title="Remove" className="text-red-400 hover:text-red-300"><X size={13} /></button>
+            </div>
+          </div>
+        ) : (
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) void uploadPortrait(f); }}
+            onClick={() => portraitInputRef.current?.click()}
+            className={[
+              'flex items-center justify-center w-20 h-20 rounded-full border border-dashed cursor-pointer transition-colors',
+              dragOver ? 'border-primary/60 bg-primary/5 text-primary' : 'border-border text-muted-foreground/70 hover:border-muted-foreground/40 hover:text-muted-foreground',
+            ].join(' ')}
+          >
+            <ImagePlus size={18} />
+          </div>
+        )}
+        <input ref={portraitInputRef} type="file" accept="image/*" className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadPortrait(f); }} />
+      </div>
+
       <div>
         <SectionLabel>Name</SectionLabel>
         <TextInput value={inv.name} onChange={(e) => inv.setName(e.target.value)} placeholder="Investigator name…" />
@@ -35,7 +79,7 @@ export function InvestigatorTab() {
                   onClick={() => inv.strikeAttribute(attr, !struck)}
                   title={struck ? 'Clear strike' : 'Strike (unusable until rest)'}
                   className={`flex-1 flex items-center justify-between px-2.5 py-1.5 rounded border text-[12px] transition-colors ${
-                    struck ? 'border-red-400/30 text-red-400/60 line-through bg-red-400/5' : 'border-[#30363d] text-[#e6edf3]'
+                    struck ? 'border-red-400/30 text-red-400/60 line-through bg-red-400/5' : 'border-border text-foreground'
                   }`}
                 >
                   {ATTRIBUTE_LABELS[attr]}
@@ -46,7 +90,7 @@ export function InvestigatorTab() {
                       key={v}
                       onClick={() => inv.setAttribute(attr, v)}
                       className={`w-6 h-6 rounded border text-[11px] font-mono transition-colors ${
-                        inv.attributes[attr] === v ? 'border-amber-400/60 text-amber-400 bg-amber-400/10' : 'border-[#30363d] text-[#484f58]'
+                        inv.attributes[attr] === v ? 'border-primary/60 text-primary bg-primary/10' : 'border-border text-muted-foreground/70'
                       }`}
                     >
                       {v}
@@ -62,12 +106,12 @@ export function InvestigatorTab() {
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <SectionLabel>Fatigue</SectionLabel>
-          <span className="text-[10px] text-[#484f58] font-mono">{inv.fatigue}/5</span>
+          <span className="text-[10px] text-muted-foreground/70 font-mono">{inv.fatigue}/5</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex gap-1">
             {[0, 1, 2, 3, 4].map((i) => (
-              <div key={i} className={`w-6 h-6 rounded border ${i < inv.fatigue ? 'bg-red-400/20 border-red-400/50' : 'border-[#30363d]'}`} />
+              <div key={i} className={`w-6 h-6 rounded border ${i < inv.fatigue ? 'bg-red-400/20 border-red-400/50' : 'border-border'}`} />
             ))}
           </div>
           <SmallButton onClick={() => inv.gainFatigue(1)}>+1</SmallButton>
@@ -79,19 +123,19 @@ export function InvestigatorTab() {
         <SectionLabel>Obligations</SectionLabel>
         <div className="space-y-1 mb-2">
           {inv.obligations.map((o) => (
-            <div key={o.id} className="flex items-center gap-2 px-2 py-1.5 rounded bg-[#0d1117] border border-[#30363d] group">
+            <div key={o.id} className="flex items-center gap-2 px-2 py-1.5 rounded bg-background border border-border group">
               <button
                 onClick={() => inv.strikeObligation(o.id, !o.struck)}
-                className={`flex-1 text-left text-[12px] transition-colors ${o.struck ? 'text-[#484f58] line-through' : 'text-[#e6edf3]'}`}
+                className={`flex-1 text-left text-[12px] transition-colors ${o.struck ? 'text-muted-foreground/70 line-through' : 'text-foreground'}`}
               >
                 {o.text}
               </button>
-              <button onClick={() => inv.removeObligation(o.id)} className="text-[#484f58] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button onClick={() => inv.removeObligation(o.id)} className="text-muted-foreground/70 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Trash2 size={11} />
               </button>
             </div>
           ))}
-          {inv.obligations.length === 0 && <div className="text-[11px] text-[#3a3f47]">No obligations yet</div>}
+          {inv.obligations.length === 0 && <div className="text-[11px] text-muted-foreground/40">No obligations yet</div>}
         </div>
         <div className="flex gap-1.5">
           <TextInput
@@ -100,7 +144,7 @@ export function InvestigatorTab() {
             onChange={(e) => setNewObligation(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && newObligation.trim()) { inv.addObligation(newObligation.trim()); setNewObligation(''); } }}
           />
-          <button onClick={() => { if (newObligation.trim()) { inv.addObligation(newObligation.trim()); setNewObligation(''); } }} className="text-amber-400 hover:text-amber-300 shrink-0"><Plus size={16} /></button>
+          <button onClick={() => { if (newObligation.trim()) { inv.addObligation(newObligation.trim()); setNewObligation(''); } }} className="text-primary hover:text-primary shrink-0"><Plus size={16} /></button>
         </div>
       </div>
 
@@ -108,14 +152,14 @@ export function InvestigatorTab() {
         <SectionLabel>Keywords</SectionLabel>
         <div className="space-y-1 mb-2">
           {inv.keywords.map((k) => (
-            <div key={k.id} className="flex items-center gap-2 px-2 py-1.5 rounded bg-[#0d1117] border border-[#30363d] group">
-              <span className={`flex-1 text-[12px] ${k.struck ? 'text-[#484f58] line-through' : 'text-[#e6edf3]'}`}>{k.text}</span>
+            <div key={k.id} className="flex items-center gap-2 px-2 py-1.5 rounded bg-background border border-border group">
+              <span className={`flex-1 text-[12px] ${k.struck ? 'text-muted-foreground/70 line-through' : 'text-foreground'}`}>{k.text}</span>
               {k.signature && <Badge tone="amber">signature</Badge>}
               {!k.struck && <SmallButton onClick={() => inv.useKeyword(k.id)}>Use</SmallButton>}
-              <button onClick={() => inv.removeKeyword(k.id)} className="text-[#484f58] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={11} /></button>
+              <button onClick={() => inv.removeKeyword(k.id)} className="text-muted-foreground/70 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={11} /></button>
             </div>
           ))}
-          {inv.keywords.length === 0 && <div className="text-[11px] text-[#3a3f47]">No keywords yet</div>}
+          {inv.keywords.length === 0 && <div className="text-[11px] text-muted-foreground/40">No keywords yet</div>}
         </div>
         <div className="flex gap-1.5 items-center">
           <TextInput
@@ -124,11 +168,11 @@ export function InvestigatorTab() {
             onChange={(e) => setNewKeyword(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && newKeyword.trim()) { inv.addKeyword(newKeyword.trim(), newKeywordSignature); setNewKeyword(''); setNewKeywordSignature(false); } }}
           />
-          <label className="flex items-center gap-1 text-[10px] text-[#8b949e] shrink-0 whitespace-nowrap">
+          <label className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">
             <input type="checkbox" checked={newKeywordSignature} onChange={(e) => setNewKeywordSignature(e.target.checked)} />
             signature
           </label>
-          <button onClick={() => { if (newKeyword.trim()) { inv.addKeyword(newKeyword.trim(), newKeywordSignature); setNewKeyword(''); setNewKeywordSignature(false); } }} className="text-amber-400 hover:text-amber-300 shrink-0"><Plus size={16} /></button>
+          <button onClick={() => { if (newKeyword.trim()) { inv.addKeyword(newKeyword.trim(), newKeywordSignature); setNewKeyword(''); setNewKeywordSignature(false); } }} className="text-primary hover:text-primary shrink-0"><Plus size={16} /></button>
         </div>
       </div>
     </div>

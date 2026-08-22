@@ -1,4 +1,7 @@
-import { X, Shield, Lock, Keyboard, FileArchive, Layers } from 'lucide-react'
+import { Shield, Lock, Keyboard, FileArchive, Layers } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
+import { Button } from '../ui/button'
+import { ScrollArea } from '../ui/scroll-area'
 
 interface Props {
   onClose: () => void
@@ -8,8 +11,8 @@ function Section({ icon, title, children }: { icon: React.ReactNode; title: stri
   return (
     <div className="mb-6">
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-amber-400">{icon}</span>
-        <h3 className="font-mono text-[11px] text-amber-400 uppercase tracking-wider">{title}</h3>
+        <span className="text-primary">{icon}</span>
+        <h3 className="font-mono text-[11px] text-primary uppercase tracking-wider">{title}</h3>
       </div>
       {children}
     </div>
@@ -18,11 +21,11 @@ function Section({ icon, title, children }: { icon: React.ReactNode; title: stri
 
 function KbRow({ keys, action }: { keys: string[]; action: string }) {
   return (
-    <div className="flex justify-between items-center py-1 border-[#21262d] last:border-0 border-b">
-      <span className="text-[#8b949e] text-[11px]">{action}</span>
+    <div className="flex justify-between items-center py-1 border-border/60 last:border-0 border-b">
+      <span className="text-muted-foreground text-[11px]">{action}</span>
       <div className="flex gap-1">
         {keys.map((k) => (
-          <kbd key={k} className="bg-[#21262d] px-1.5 py-0.5 border border-[#30363d] rounded font-mono text-[#e6edf3] text-[10px]">
+          <kbd key={k} className="bg-muted px-1.5 py-0.5 border border-border rounded font-mono text-foreground text-[10px]">
             {k}
           </kbd>
         ))}
@@ -33,67 +36,63 @@ function KbRow({ keys, action }: { keys: string[]; action: string }) {
 
 export function InfoPanel({ onClose }: Props) {
   return (
-    <div className="z-50 fixed inset-0 flex justify-center items-center bg-[#0d1117]/80 p-4">
-      <div className="flex flex-col bg-[#161b22] shadow-2xl border border-[#30363d] rounded-lg w-full max-w-[600px] max-h-[85vh]">
-        {/* Header */}
-        <div className="flex justify-between items-center px-6 py-4 border-[#30363d] border-b shrink-0">
-          <div className="flex items-center gap-3">
-            <Shield size={18} className="text-amber-400" />
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-150 max-h-[85dvh] flex flex-col p-0 gap-0 overflow-hidden">
+        <DialogHeader className="px-6 py-4 border-border border-b">
+          <DialogTitle className="flex items-center gap-3">
+            <Shield size={18} className="text-primary" />
             <div>
-              <div className="font-bold text-[#e6edf3] text-sm">Caught in the Rain</div>
-              <div className="font-mono text-[#8b949e] text-[10px]">Companion Case Board · v1.0</div>
+              <div className="font-display text-sm text-foreground">Caught in the Rain</div>
+              <div className="font-mono text-muted-foreground text-[10px] font-normal">Companion Case Board · v1.0</div>
             </div>
-          </div>
-          <button onClick={onClose} className="text-[#8b949e] hover:text-[#e6edf3]">
-            <X size={16} />
-          </button>
-        </div>
+          </DialogTitle>
+        </DialogHeader>
 
-        <div className="flex-1 px-6 py-5 overflow-y-auto">
+        <ScrollArea className="flex-1 min-h-0 max-h-[65dvh] px-6 py-5">
           <Section icon={<Layers size={14} />} title="What is this?">
-            <p className="text-[#8b949e] text-[12px] leading-relaxed">
-              A companion app for <em className="text-[#e6edf3]">Caught in the Rain</em>, a solo card-and-dice mystery RPG. Build a spatial case board
+            <p className="text-muted-foreground text-[12px] leading-relaxed">
+              A companion app for <em className="text-foreground">Caught in the Rain</em>, a solo card-and-dice mystery RPG. Build a spatial case board
               of entities (people, locations, objects, events, clues, truths) and the relationships between them, alongside your investigator sheet,
               the clue/truth decks, and dice &amp; oracle rollers for the game itself — all stored in a single{' '}
-              <code className="bg-[#21262d] px-1 rounded text-amber-400">.citr</code> file on your disk.
+              <code className="bg-muted px-1 rounded text-primary">.citr</code> file on your disk.
             </p>
-            <p className="mt-2 text-[#8b949e] text-[12px] leading-relaxed">
+            <p className="mt-2 text-muted-foreground text-[12px] leading-relaxed">
               Think of the board as a digital version of the detective's evidence board: nodes are index cards, edges are the red threads between them.
             </p>
           </Section>
 
           <Section icon={<Lock size={14} />} title="Privacy & Security">
-            <div className="space-y-2 text-[#8b949e] text-[12px]">
+            <div className="space-y-2 text-muted-foreground text-[12px]">
               <div className="flex gap-2">
-                <span className="mt-0.5 text-amber-400 shrink-0">→</span>
+                <span className="mt-0.5 text-primary shrink-0">→</span>
                 <span>
-                  <strong className="text-[#e6edf3]">Fully offline.</strong> Zero network requests at runtime. No analytics, no telemetry, no CDN
+                  <strong className="text-foreground">Fully offline.</strong> Zero network requests at runtime. No analytics, no telemetry, no CDN
                   calls.
                 </span>
               </div>
               <div className="flex gap-2">
-                <span className="mt-0.5 text-amber-400 shrink-0">→</span>
+                <span className="mt-0.5 text-primary shrink-0">→</span>
                 <span>
-                  <strong className="text-[#e6edf3]">Single-file storage.</strong> Everything lives in the{' '}
-                  <code className="bg-[#21262d] px-1 rounded text-amber-400">.citr</code> file — a ZIP archive you control.
+                  <strong className="text-foreground">Single-file storage.</strong> Everything lives in the{' '}
+                  <code className="bg-muted px-1 rounded text-primary">.citr</code> file — a ZIP archive you control.
                 </span>
               </div>
               <div className="flex gap-2">
-                <span className="mt-0.5 text-amber-400 shrink-0">→</span>
+                <span className="mt-0.5 text-primary shrink-0">→</span>
                 <span>
-                  <strong className="text-[#e6edf3]">No cloud.</strong> No accounts, no sync services, no external dependencies at runtime.
+                  <strong className="text-foreground">No cloud.</strong> No accounts, no sync services, no external dependencies at runtime.
                 </span>
               </div>
               <div className="flex gap-2">
-                <span className="mt-0.5 text-amber-400 shrink-0">→</span>
+                <span className="mt-0.5 text-primary shrink-0">→</span>
                 <span>
-                  <strong className="text-[#e6edf3]">USB-safe.</strong> The app can run as a static bundle from a USB stick or local file server.
+                  <strong className="text-foreground">USB-safe.</strong> The app can run as a static bundle from a USB stick or local file server.
                 </span>
               </div>
-              <div className="flex gap-2 bg-amber-400/5 mt-3 p-3 border border-amber-400/20 rounded">
-                <span className="mt-0.5 text-amber-400 shrink-0">⚠</span>
+              <div className="flex gap-2 bg-primary/5 mt-3 p-3 border border-primary/20 rounded">
+                <span className="mt-0.5 text-primary shrink-0">⚠</span>
                 <span>
-                  <strong className="text-amber-400">Note:</strong> The <code className="bg-[#21262d] px-1 rounded text-amber-400">.citr</code> file
+                  <strong className="text-primary">Note:</strong> The <code className="bg-muted px-1 rounded text-primary">.citr</code> file
                   is only optionally encrypted (set a passphrase when creating a case). The 3 sealed truth cards are lightly obfuscated inside the
                   file, not cryptographically hidden — treat the file like any other document about a case you don't want to spoil for yourself.
                 </span>
@@ -102,11 +101,11 @@ export function InfoPanel({ onClose }: Props) {
           </Section>
 
           <Section icon={<Keyboard size={14} />} title="Keyboard Shortcuts">
-            <div className="bg-[#0d1117] p-3 border border-[#30363d] rounded">
+            <div className="bg-background p-3 border border-border rounded">
               <KbRow keys={['Ctrl', 'K']} action="Open search" />
               <KbRow keys={['Esc']} action="Close panel / dismiss" />
               <KbRow keys={['Del']} action="Delete selected node" />
-              <KbRow keys={['Double-click', 'canvas']} action="Add node at position" />
+              <KbRow keys={['Right-click', 'canvas']} action="Add node at position" />
               <KbRow keys={['Double-click', 'node']} action="Open node panel" />
               <KbRow keys={['Right-click']} action="Context menu" />
               <KbRow keys={['Drag', 'handle']} action="Connect nodes" />
@@ -116,51 +115,46 @@ export function InfoPanel({ onClose }: Props) {
           </Section>
 
           <Section icon={<FileArchive size={14} />} title="File Format">
-            <p className="mb-2 text-[#8b949e] text-[12px] leading-relaxed">
-              A <code className="bg-[#21262d] px-1 rounded text-amber-400">.citr</code> file is a standard ZIP archive containing:
+            <p className="mb-2 text-muted-foreground text-[12px] leading-relaxed">
+              A <code className="bg-muted px-1 rounded text-primary">.citr</code> file is a standard ZIP archive containing:
             </p>
-            <div className="space-y-1 bg-[#0d1117] p-3 border border-[#30363d] rounded font-mono text-[#8b949e] text-[11px]">
+            <div className="space-y-1 bg-background p-3 border border-border rounded font-mono text-muted-foreground text-[11px]">
               <div>
-                <span className="text-[#3fb950]">manifest.json</span> — schema version, case title, timestamps
+                <span className="text-emerald-500">manifest.json</span> — schema version, case title, timestamps
               </div>
               <div>
-                <span className="text-[#3fb950]">graph.json</span> — all nodes and edges
+                <span className="text-emerald-500">graph.json</span> — all nodes and edges
               </div>
               <div>
-                <span className="text-[#3fb950]">canvas.json</span> — node positions, viewport state
+                <span className="text-emerald-500">canvas.json</span> — node positions, viewport state
               </div>
               <div>
-                <span className="text-[#3fb950]">investigator.json</span> — your investigator's sheet
+                <span className="text-emerald-500">investigator.json</span> — your investigator's sheet
               </div>
               <div>
-                <span className="text-[#3fb950]">mystery.json</span> — the case's problem, danger, clock, clues, threats
+                <span className="text-emerald-500">mystery.json</span> — the case's problem, danger, clock, clues, threats
               </div>
               <div>
-                <span className="text-[#3fb950]">decks.json</span> — the clue/truth decks, incl. the sealed truth cards
+                <span className="text-emerald-500">decks.json</span> — the clue/truth decks, incl. the sealed truth cards
               </div>
               <div>
-                <span className="text-[#3fb950]">assets/</span> — thumbnails, attached images and PDFs
+                <span className="text-emerald-500">assets/</span> — thumbnails, attached images and PDFs
               </div>
               <div>
-                <span className="text-[#3fb950]">content/</span> — rich text content per node
+                <span className="text-emerald-500">content/</span> — rich text content per node
               </div>
             </div>
-            <p className="mt-2 text-[#484f58] text-[11px]">
-              You can unzip and inspect a <code className="text-amber-400">.citr</code> file with any standard archive tool — though opening{' '}
-              <code className="text-amber-400">decks.json</code> will spoil your own mystery.
+            <p className="mt-2 text-muted-foreground/70 text-[11px]">
+              You can unzip and inspect a <code className="text-primary">.citr</code> file with any standard archive tool — though opening{' '}
+              <code className="text-primary">decks.json</code> will spoil your own mystery.
             </p>
           </Section>
-        </div>
+        </ScrollArea>
 
-        <div className="px-6 py-3 border-[#30363d] border-t text-center shrink-0">
-          <button
-            onClick={onClose}
-            className="bg-amber-400 hover:bg-amber-300 px-6 py-1.5 rounded font-semibold text-[#0d1117] text-sm transition-colors"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
+        <DialogFooter className="px-6 py-3 border-border border-t sm:justify-center">
+          <Button onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import { Shield, Plus, ChevronDown, ChevronRight, Circle } from 'lucide-react';
+import { Shield, Plus, ChevronDown, ChevronRight, Circle, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useGraphStore } from '../../store/graphStore';
 import { useFileStore } from '../../store/fileStore';
+import { useMysteryStore } from '../../store/mysteryStore';
 import { getAllTags } from '../../graph/graphOps';
 import { NODE_TYPE_CONFIG, ALL_NODE_TYPES } from '../../lib/nodeTypeConfig';
+import { Sidebar, SidebarHeader, SidebarContent, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '../ui/sidebar';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
+import { Button } from '../ui/button';
 import type { NodeType } from '../../types';
 
 interface Props {
@@ -16,17 +20,36 @@ interface Props {
   selectedNodeId: string | null;
 }
 
+function SectionCollapsible({ label, count, defaultOpen, children }: { label: string; count: number; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen ?? true);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <SidebarGroup className="py-0">
+        <CollapsibleTrigger asChild>
+          <SidebarGroupLabel className="cursor-pointer">
+            <span className="flex-1">{label} ({count})</span>
+            {open ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+          </SidebarGroupLabel>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarGroupContent>{children}</SidebarGroupContent>
+        </CollapsibleContent>
+      </SidebarGroup>
+    </Collapsible>
+  );
+}
+
 export function SidebarPanel({
   activeTag, onTagClick, activeType, onTypeClick, onFocusNode, onAddNode, selectedNodeId,
 }: Props) {
   const nodes = useGraphStore((s) => s.nodes);
   const edges = useGraphStore((s) => s.edges);
   const manifest = useFileStore((s) => s.manifest);
+  const mysteryStarted = useMysteryStore((s) => s.started);
+  const clueDeckLeft = useMysteryStore((s) => s.clueDeck.length);
+  const truthDeckLeft = useMysteryStore((s) => s.truthDeck.length);
   const allTags = getAllTags(nodes);
-
-  const [nodesOpen, setNodesOpen] = useState(true);
-  const [typesOpen, setTypesOpen] = useState(true);
-  const [tagsOpen, setTagsOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   const allNodeValues = Object.values(nodes);
 
@@ -40,37 +63,59 @@ export function SidebarPanel({
 
   const hasActiveFilter = activeType || activeTag;
 
-  return (
-    <div className="w-55 h-full bg-[#161b22] border-r border-[#30363d] flex flex-col overflow-hidden">
+  if (collapsed) {
+    return (
+      <Sidebar collapsible="none" className="w-12 h-full border-r border-border shrink-0">
+        <SidebarHeader className="items-center px-0 py-3">
+          <Button variant="ghost" size="icon-sm" onClick={() => setCollapsed(false)} title="Expand sidebar">
+            <PanelLeftOpen size={14} />
+          </Button>
+        </SidebarHeader>
+      </Sidebar>
+    );
+  }
 
+  return (
+    <Sidebar collapsible="none" className="w-55 h-full border-r border-border shrink-0">
       {/* Case header */}
-      <div className="px-4 py-3.5 border-b border-[#30363d] shrink-0">
-        <div className="flex items-center gap-2 mb-1">
-          <Shield size={12} className="text-amber-400" />
-          <span className="text-[10px] uppercase tracking-wider text-amber-400 font-mono">Case</span>
+      <SidebarHeader className="px-4 py-3.5 border-b border-border gap-1">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Shield size={12} className="text-primary" />
+            <span className="text-[10px] uppercase tracking-wider text-primary font-mono">Case</span>
+          </div>
+          <Button variant="ghost" size="icon-xs" onClick={() => setCollapsed(true)} title="Collapse sidebar">
+            <PanelLeftClose size={12} />
+          </Button>
         </div>
-        <div className="text-sm font-semibold text-[#e6edf3] truncate leading-tight">
+        <div className="text-sm font-semibold text-foreground truncate leading-tight">
           {manifest?.title ?? 'Untitled'}
         </div>
-        <div className="flex gap-3 mt-1.5 text-[10px] font-mono text-[#484f58]">
+        <div className="flex gap-3 text-[10px] font-mono text-muted-foreground/70">
           <span>{allNodeValues.length} nodes</span>
           <span>{Object.keys(edges).length} edges</span>
         </div>
+        {mysteryStarted && (
+          <div className="flex gap-3 text-[10px] font-mono text-muted-foreground/50" title="Cards remaining, unseen">
+            <span>{clueDeckLeft} clues left</span>
+            <span>{truthDeckLeft} truths left</span>
+          </div>
+        )}
         {manifest?.created && (
-          <div className="text-[10px] font-mono text-[#3a3f47] mt-0.5">
+          <div className="text-[10px] font-mono text-muted-foreground/40">
             {new Date(manifest.created).toLocaleDateString()}
           </div>
         )}
-      </div>
+      </SidebarHeader>
 
-      <div className="flex-1 overflow-y-auto">
+      <SidebarContent>
 
         {/* Active filter pill */}
         {hasActiveFilter && (
           <div className="px-3 pt-2">
             <button
               onClick={() => { onTypeClick(null); onTagClick(null); }}
-              className="w-full flex items-center gap-1.5 px-2 py-1 text-[10px] text-amber-400 bg-amber-400/10 rounded border border-amber-400/30 hover:bg-amber-400/20 transition-colors"
+              className="w-full flex items-center gap-1.5 px-2 py-1 text-[10px] text-primary bg-primary/10 rounded border border-primary/30 hover:bg-primary/20 transition-colors"
             >
               <span className="flex-1 text-left truncate">
                 {activeType && NODE_TYPE_CONFIG[activeType].label}
@@ -83,136 +128,82 @@ export function SidebarPanel({
         )}
 
         {/* Node list */}
-        <div className="border-b border-[#21262d] mt-2">
-          <button
-            onClick={() => setNodesOpen((v) => !v)}
-            className="w-full flex items-center justify-between px-4 py-2 text-[10px] uppercase tracking-wider text-[#8b949e] hover:text-[#e6edf3] transition-colors"
-          >
-            <span>Nodes ({visibleNodes.length})</span>
-            {nodesOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-          </button>
-
-          {nodesOpen && (
-            <div className="pb-1">
-              {visibleNodes.length === 0 && (
-                <div className="px-4 py-1 text-[11px] text-[#3a3f47]">
-                  {hasActiveFilter ? 'No matches' : 'No nodes yet'}
-                </div>
-              )}
-              {visibleNodes.map((node) => {
-                const typeCfg = node.nodeType ? NODE_TYPE_CONFIG[node.nodeType] : null;
-                return (
-                  <button
-                    key={node.id}
-                    onClick={() => onFocusNode(node.id)}
-                    className={[
-                      'w-full flex items-start gap-2 px-4 py-1.5 text-left transition-colors group',
-                      selectedNodeId === node.id
-                        ? 'bg-amber-400/10 text-amber-400'
-                        : 'text-[#8b949e] hover:bg-[#1c2333] hover:text-[#e6edf3]',
-                    ].join(' ')}
-                  >
+        <SectionCollapsible label="Nodes" count={visibleNodes.length}>
+          <SidebarMenu>
+            {visibleNodes.length === 0 && (
+              <div className="px-4 py-1 text-[11px] text-muted-foreground/40">
+                {hasActiveFilter ? 'No matches' : 'No nodes yet'}
+              </div>
+            )}
+            {visibleNodes.map((node) => {
+              const typeCfg = node.nodeType ? NODE_TYPE_CONFIG[node.nodeType] : null;
+              return (
+                <SidebarMenuItem key={node.id}>
+                  <SidebarMenuButton isActive={selectedNodeId === node.id} onClick={() => onFocusNode(node.id)} className="h-auto py-1.5">
                     <div
-                      className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0"
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
                       style={{ backgroundColor: typeCfg?.dot ?? '#484f58' }}
                     />
                     <div className="min-w-0 flex-1">
                       <div className="text-[12px] font-medium leading-tight truncate">{node.label}</div>
                       {node.nodeType && (
-                        <div className="text-[9px] font-mono text-[#484f58]">{NODE_TYPE_CONFIG[node.nodeType].label}</div>
+                        <div className="text-[9px] font-mono text-muted-foreground/70">{NODE_TYPE_CONFIG[node.nodeType].label}</div>
                       )}
                     </div>
-                  </button>
-                );
-              })}
-              <button
-                onClick={onAddNode}
-                className="w-full flex items-center gap-2 px-4 py-1.5 text-[11px] text-[#484f58] hover:text-amber-400 transition-colors"
-              >
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+            <SidebarMenuItem>
+              <SidebarMenuButton onClick={onAddNode} className="text-muted-foreground/70 hover:text-primary">
                 <Plus size={10} />Add node
-              </button>
-            </div>
-          )}
-        </div>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SectionCollapsible>
 
         {/* Type filter */}
         {usedTypes.length > 0 && (
-          <div className="border-b border-[#21262d]">
-            <button
-              onClick={() => setTypesOpen((v) => !v)}
-              className="w-full flex items-center justify-between px-4 py-2 text-[10px] uppercase tracking-wider text-[#8b949e] hover:text-[#e6edf3] transition-colors"
-            >
-              <span>Types</span>
-              {typesOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-            </button>
-
-            {typesOpen && (
-              <div className="pb-2">
-                {usedTypes.map((type) => {
-                  const cfg = NODE_TYPE_CONFIG[type];
-                  const count = allNodeValues.filter((n) => n.nodeType === type).length;
-                  return (
-                    <button
-                      key={type}
-                      onClick={() => onTypeClick(activeType === type ? null : type)}
-                      className={[
-                        'w-full flex items-center justify-between px-4 py-1.5 text-[11px] transition-colors',
-                        activeType === type
-                          ? 'bg-amber-400/10 text-amber-400'
-                          : 'text-[#8b949e] hover:bg-[#1c2333] hover:text-[#e6edf3]',
-                      ].join(' ')}
-                    >
-                      <span className="flex items-center gap-2">
-                        <span style={{ color: cfg.dot }}>{cfg.icon}</span>
-                        {cfg.label}
-                      </span>
-                      <span className="text-[10px] text-[#3a3f47]">{count}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <SectionCollapsible label="Types" count={usedTypes.length}>
+            <SidebarMenu>
+              {usedTypes.map((type) => {
+                const cfg = NODE_TYPE_CONFIG[type];
+                const count = allNodeValues.filter((n) => n.nodeType === type).length;
+                return (
+                  <SidebarMenuItem key={type}>
+                    <SidebarMenuButton isActive={activeType === type} onClick={() => onTypeClick(activeType === type ? null : type)}>
+                      <span style={{ color: cfg.dot }}>{cfg.icon}</span>
+                      <span className="flex-1">{cfg.label}</span>
+                      <span className="text-[10px] text-muted-foreground/40">{count}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SectionCollapsible>
         )}
 
         {/* Tag filter */}
         {allTags.length > 0 && (
-          <div>
-            <button
-              onClick={() => setTagsOpen((v) => !v)}
-              className="w-full flex items-center justify-between px-4 py-2 text-[10px] uppercase tracking-wider text-[#8b949e] hover:text-[#e6edf3] transition-colors"
-            >
-              <span>Tags</span>
-              {tagsOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-            </button>
-
-            {tagsOpen && (
-              <div className="pb-2">
-                {allTags.map((tag) => {
-                  const count = allNodeValues.filter((n) => n.tags.includes(tag)).length;
-                  return (
-                    <button
-                      key={tag}
-                      onClick={() => onTagClick(activeTag === tag ? null : tag)}
-                      className={[
-                        'w-full flex items-center justify-between px-4 py-1.5 text-[11px] transition-colors',
-                        activeTag === tag ? 'text-amber-400 bg-amber-400/10' : 'text-[#8b949e] hover:bg-[#1c2333] hover:text-[#e6edf3]',
-                      ].join(' ')}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <Circle size={6} className="fill-current" />
-                        {tag}
-                      </span>
-                      <span className="text-[10px] text-[#3a3f47]">{count}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <SectionCollapsible label="Tags" count={allTags.length} defaultOpen={false}>
+            <SidebarMenu>
+              {allTags.map((tag) => {
+                const count = allNodeValues.filter((n) => n.tags.includes(tag)).length;
+                return (
+                  <SidebarMenuItem key={tag}>
+                    <SidebarMenuButton isActive={activeTag === tag} onClick={() => onTagClick(activeTag === tag ? null : tag)}>
+                      <Circle size={6} className="fill-current" />
+                      <span className="flex-1">{tag}</span>
+                      <span className="text-[10px] text-muted-foreground/40">{count}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SectionCollapsible>
         )}
 
-      </div>
-    </div>
+      </SidebarContent>
+    </Sidebar>
   );
 }

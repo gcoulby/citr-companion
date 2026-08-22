@@ -86,21 +86,21 @@ export function ContentEditor({ nodeId, onClose }: Props) {
   }, [onClose])
 
   return (
-    <div className="z-50 fixed inset-0 flex flex-col bg-[#0d1117]">
+    <div className="z-50 fixed inset-0 flex flex-col bg-background">
       {/* Header */}
-      <div className="flex items-center gap-3 bg-[#161b22] px-4 border-[#30363d] border-b h-10 shrink-0">
-        <BookOpen size={14} className="text-amber-400" />
-        <span className="font-medium text-[#e6edf3] text-sm truncate">{node?.label}</span>
-        <span className="font-mono text-[#484f58] text-[11px]">· document</span>
+      <div className="flex items-center gap-3 bg-card px-4 border-border border-b h-10 shrink-0">
+        <BookOpen size={14} className="text-primary" />
+        <span className="font-medium text-foreground text-sm truncate">{node?.label}</span>
+        <span className="font-mono text-muted-foreground/70 text-[11px]">· document</span>
         <div className="flex-1" />
-        <button onClick={onClose} className="text-[#8b949e] hover:text-[#e6edf3] transition-colors">
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
           <X size={15} />
         </button>
       </div>
 
       {/* Editor area */}
       {!loaded ? (
-        <div className="flex flex-1 justify-center items-center gap-2 text-[#484f58]">
+        <div className="flex flex-1 justify-center items-center gap-2 text-muted-foreground/70">
           <Loader2 size={16} className="animate-spin" />
           <span className="text-sm">Loading…</span>
         </div>

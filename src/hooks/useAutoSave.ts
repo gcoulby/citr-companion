@@ -5,7 +5,7 @@ import { useFileStore } from '../store/fileStore';
 import { useInvestigatorStore } from '../store/investigatorStore';
 import { useMysteryStore } from '../store/mysteryStore';
 import { writeCitr } from '../file/citrWriter';
-import { writeCitrFile, downloadBlob } from '../file/fileHandle';
+import { writeCitrFile, downloadBlob, upsertCaseEntry, saveCaseBlobToIDB } from '../file/fileHandle';
 import { encryptBlob } from '../lib/crypto';
 import type { CaseManifest, GraphState, CanvasState } from '../types';
 import type { Investigator, Mystery } from '../game/types';
@@ -35,7 +35,7 @@ async function performSave(
   investigator: Investigator,
   mystery: Mystery,
 ): Promise<void> {
-  const { setSaveStatus, setLastSaved, passphrase } = useFileStore.getState();
+  const { setSaveStatus, setLastSaved, passphrase, storageMode } = useFileStore.getState();
   const blob = await writeCitr({
     manifest, nodes, edges, positions, viewport, layout, investigator, mystery,
     existingFile: currentFileBlob, contentDirty, contentMap, assetMap,
@@ -49,11 +49,21 @@ async function performSave(
   // Encrypt before writing to disk if a passphrase is active
   const diskBlob = passphrase ? await encryptBlob(blob, passphrase) : blob;
 
-  if (handle) await writeCitrFile(handle, diskBlob);
-  else downloadBlob(diskBlob, filename);
+  const savedAt = new Date().toISOString();
+  if (handle) {
+    await writeCitrFile(handle, diskBlob);
+    if (manifest.id) {
+      void upsertCaseEntry({ id: manifest.id, title: manifest.title, handle, storage: 'handle', created: manifest.created, modified: savedAt });
+    }
+  } else if (storageMode === 'idb' && manifest.id) {
+    await saveCaseBlobToIDB(manifest.id, diskBlob);
+    void upsertCaseEntry({ id: manifest.id, title: manifest.title, handle: null, storage: 'idb', created: manifest.created, modified: savedAt });
+  } else {
+    downloadBlob(diskBlob, filename);
+  }
 
   setSaveStatus('saved');
-  setLastSaved(new Date().toISOString());
+  setLastSaved(savedAt);
 }
 
 // ── Imperative save (bypasses debounce) ───────────────────────────────────────

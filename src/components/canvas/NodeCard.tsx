@@ -4,6 +4,7 @@ import { Pencil, FileText, BookOpen, Paperclip, MapPin } from 'lucide-react';
 import type { GraphNode } from '../../types';
 import { NODE_TYPE_CONFIG } from '../../lib/nodeTypeConfig';
 import { osmTileUrl, pinPercentInTile } from '../../lib/locationUtils';
+import { PlayingCardView } from '../play/PlayingCard';
 
 const THREAT_LEVEL_LABEL: Record<1 | 2 | 3, string> = { 1: 'Level 1', 2: 'Level 2', 3: 'Level 3' };
 
@@ -27,6 +28,13 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
   const tileUrl  = showMap ? osmTileUrl(node.location!.lat, node.location!.lng, TILE_ZOOM) : null;
   const pinPos   = showMap ? pinPercentInTile(node.location!.lat, node.location!.lng, TILE_ZOOM) : null;
 
+  // A clue/truth's literal card is the most useful thing to see at a glance —
+  // feature it prominently like a thumbnail, always, even alongside an
+  // uploaded image/map (stacked below it) rather than being displaced.
+  const featureCard = node.clue?.card ?? node.truth?.card;
+  const showFeatureCard = Boolean(featureCard);
+  const cardIsTopFeature = showFeatureCard && !showMap && !showImg;
+
   // Top 3 properties to preview on the card
   const previewProps = Object.entries(node.properties).slice(0, 3);
 
@@ -43,10 +51,10 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
       className={[
         'relative w-55 rounded border transition-all duration-150 group',
         selected
-          ? 'border-amber-400 bg-[#1c2333] shadow-[0_0_0_2px_rgba(251,191,36,0.15)]'
+          ? 'border-primary bg-muted shadow-[0_0_0_2px_rgba(251,191,36,0.15)]'
           : isTruth
-            ? 'border-yellow-300/50 bg-[#161b22] hover:border-yellow-300/70'
-            : 'border-[#30363d] bg-[#161b22] hover:border-[#484f58]',
+            ? 'border-yellow-300/50 bg-card hover:border-yellow-300/70'
+            : 'border-border bg-card hover:border-muted-foreground/40',
         isFalseLead ? 'opacity-50' : '',
         dimmed ? 'opacity-20' : 'opacity-100',
       ].join(' ')}
@@ -56,7 +64,7 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
 
       {/* Feature: map tile with pin */}
       {showMap && tileUrl && pinPos && (
-        <div className="relative w-full h-20 overflow-hidden rounded-t border-b border-[#30363d]">
+        <div className="relative w-full h-20 overflow-hidden rounded-t border-b border-border">
           <img src={tileUrl} alt="" className="w-full h-full object-cover" />
           {/* Pin — positioned at the lat/lng within the tile */}
           <div
@@ -70,8 +78,16 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
 
       {/* Feature: uploaded thumbnail image */}
       {showImg && (
-        <div className="w-full h-20 overflow-hidden rounded-t border-b border-[#30363d]">
+        <div className="w-full h-20 overflow-hidden rounded-t border-b border-border">
           <img src={thumbnailUrl} alt="" className="w-full h-full object-cover" />
+        </div>
+      )}
+
+      {/* Feature: the literal clue/truth card, shown large for a quick glance —
+          always present when a card exists, stacked below an image/map if one is also set */}
+      {showFeatureCard && featureCard && (
+        <div className={`w-full h-20 flex items-center justify-center border-b border-border bg-background/60 ${cardIsTopFeature ? 'rounded-t' : ''}`}>
+          <PlayingCardView card={featureCard} size="md" />
         </div>
       )}
 
@@ -84,14 +100,14 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
               {typeConfig.label}
             </span>
           )}
-          <span className="text-[13px] font-semibold text-[#e6edf3] leading-tight truncate flex-1 min-w-0">
+          <span className="text-[13px] font-semibold text-foreground leading-tight truncate flex-1 min-w-0">
             {node.label}
           </span>
           {onEdit && (
             <button
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); onEdit(); }}
-              className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[#8b949e] hover:text-amber-400"
+              className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-muted-foreground hover:text-primary"
             >
               <Pencil size={10} />
             </button>
@@ -99,13 +115,13 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
         </div>
 
         {node.summary && (
-          <div className="text-[11px] text-[#8b949e] leading-tight line-clamp-2 mb-1.5">
+          <div className="text-[11px] text-muted-foreground leading-tight line-clamp-2 mb-1.5">
             {node.summary}
           </div>
         )}
 
         {node.clue && (
-          <div className={`text-[9px] font-mono mb-1 ${isFalseLead ? 'text-red-400 line-through' : isTruth ? 'text-yellow-300' : 'text-[#6e7681]'}`}>
+          <div className={`text-[9px] font-mono mb-1 ${isFalseLead ? 'text-red-400 line-through' : isTruth ? 'text-yellow-300' : 'text-muted-foreground/80'}`}>
             Clue {node.clue.rank} · {node.clue.status}
           </div>
         )}
@@ -113,7 +129,7 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
           <div className="text-[9px] font-mono text-yellow-300 mb-1">confirmed truth</div>
         )}
         {node.threat && (
-          <div className={`text-[9px] font-mono mb-1 ${node.threat.defeated ? 'text-[#484f58] line-through' : 'text-red-400'}`}>
+          <div className={`text-[9px] font-mono mb-1 ${node.threat.defeated ? 'text-muted-foreground/70 line-through' : 'text-red-400'}`}>
             {node.threat.kind === 'rival' ? 'Rival' : 'Threat'} · {THREAT_LEVEL_LABEL[node.threat.level]}
           </div>
         )}
@@ -123,8 +139,8 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
           <div className="space-y-0.5 mb-1.5 mt-1">
             {previewProps.map(([k, v]) => (
               <div key={k} className="flex gap-1.5 text-[9px] font-mono leading-tight">
-                <span className="text-[#484f58] shrink-0 truncate max-w-16">{k}</span>
-                <span className="text-[#6e7681] truncate">{v}</span>
+                <span className="text-muted-foreground/70 shrink-0 truncate max-w-16">{k}</span>
+                <span className="text-muted-foreground/80 truncate">{v}</span>
               </div>
             ))}
           </div>
@@ -135,37 +151,37 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
             {node.tags.slice(0, 3).map((tag: string) => (
               <span
                 key={tag}
-                className="text-[9px] px-1.5 py-0.5 rounded bg-[#21262d] text-[#8b949e] border border-[#2d333b]"
+                className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border"
               >
                 {tag}
               </span>
             ))}
             {node.tags.length > 3 && (
-              <span className="text-[9px] text-[#484f58]">+{node.tags.length - 3}</span>
+              <span className="text-[9px] text-muted-foreground/70">+{node.tags.length - 3}</span>
             )}
           </div>
         )}
 
         {/* Footer indicators */}
         {(hasNotes || hasDoc || hasAttachments || hasLocation) && (
-          <div className="flex items-center gap-2 mt-2 pt-1.5 border-t border-[#21262d]">
+          <div className="flex items-center gap-2 mt-2 pt-1.5 border-t border-border/60">
             {hasNotes && (
-              <span title="Has notes" className="text-[#484f58]">
+              <span title="Has notes" className="text-muted-foreground/70">
                 <FileText size={9} />
               </span>
             )}
             {hasDoc && (
-              <span title="Has document" className="text-amber-400/60">
+              <span title="Has document" className="text-primary/60">
                 <BookOpen size={9} />
               </span>
             )}
             {hasAttachments && (
-              <span title={`${node.attachments!.length} attachment${node.attachments!.length > 1 ? 's' : ''}`} className="text-[#484f58]">
+              <span title={`${node.attachments!.length} attachment${node.attachments!.length > 1 ? 's' : ''}`} className="text-muted-foreground/70">
                 <Paperclip size={9} />
               </span>
             )}
             {hasLocation && (
-              <span title={node.location!.label ?? `${node.location!.lat.toFixed(3)}, ${node.location!.lng.toFixed(3)}`} className="text-[#484f58]">
+              <span title={node.location!.label ?? `${node.location!.lat.toFixed(3)}, ${node.location!.lng.toFixed(3)}`} className="text-muted-foreground/70">
                 <MapPin size={9} />
               </span>
             )}

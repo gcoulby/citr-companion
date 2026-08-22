@@ -1,46 +1,67 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* ── Fonts (self-hosted via @fontsource — no runtime network requests) ──────── */
+/* Body: one consistent serif across every theme. */
+@import "@fontsource/lora/latin-400.css";
+@import "@fontsource/lora/latin-500.css";
+@import "@fontsource/lora/latin-600.css";
+/* Data / mono fields: one consistent mono across every theme. */
+@import "@fontsource/jetbrains-mono/latin-400.css";
+@import "@fontsource/jetbrains-mono/latin-500.css";
+/* Display: one per genre, applied only to headings/titles/chrome — see [data-genre]. */
+@import "@fontsource/special-elite/latin-400.css";       /* noir */
+@import "@fontsource/playfair-display/latin-600.css";     /* fantasy */
+@import "@fontsource/playfair-display/latin-700.css";
+@import "@fontsource/pirata-one/latin-400.css";           /* horror */
+@import "@fontsource/orbitron/latin-500.css";             /* sci-fi */
+@import "@fontsource/orbitron/latin-700.css";
+
+@custom-variant dark (&:is(.dark *));
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  overflow: hidden;
+}
+
 body {
   margin: 0;
-  background: #0d1117;
-  color: #e6edf3;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   overflow: hidden;
 }
 
 /* ── React Flow chrome ─────────────────────────────────────────────────────── */
 
 .react-flow__renderer {
-  background: #0d1117;
+  background: var(--background);
 }
 
 .react-flow__controls {
-  background: #161b22;
-  border: 1px solid #30363d;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 6px;
   box-shadow: none;
 }
 
 .react-flow__controls-button {
-  background: #161b22;
-  border-bottom: 1px solid #30363d;
-  color: #8b949e;
-  fill: #8b949e;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+  fill: var(--muted-foreground);
 }
 
 .react-flow__controls-button:hover {
-  background: #1c2333;
-  fill: #e6edf3;
+  background: var(--accent);
+  fill: var(--accent-foreground);
 }
 
 .react-flow__minimap {
   border-radius: 6px;
   overflow: hidden;
-  border: 1px solid #30363d;
+  border: 1px solid var(--border);
 }
 
 /* ── Drawing-pin handles ───────────────────────────────────────────────────── */
@@ -54,16 +75,16 @@ body {
   width: 14px !important;
   height: 14px !important;
   border-radius: 50% !important;
-  background: #fbbf24 !important;
-  border: 2.5px solid #0d1117 !important;
+  background: var(--primary) !important;
+  border: 2.5px solid var(--background) !important;
   cursor: crosshair !important;
   transition: background 0.15s ease, box-shadow 0.15s ease !important;
   z-index: 10;
 }
 
 .react-flow__handle:hover {
-  background: #fde68a !important;
-  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.35) !important;
+  background: var(--ring) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 35%, transparent) !important;
 }
 
 /* Needle — points downward from the pin head into the card */
@@ -75,7 +96,7 @@ body {
   transform: translateX(-50%);
   width: 2px;
   height: 10px;
-  background: linear-gradient(to bottom, #fbbf24 40%, rgba(251, 191, 36, 0.1));
+  background: linear-gradient(to bottom, var(--primary) 40%, transparent);
   border-radius: 0 0 2px 2px;
   pointer-events: none;
 }
@@ -83,13 +104,267 @@ body {
 /* Suppress the connecting-line indicator that clashes with the pin */
 .react-flow__handle.connectingfrom,
 .react-flow__handle.connectingto {
-  background: #fde68a !important;
-  box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.45) !important;
+  background: var(--ring) !important;
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary) 45%, transparent) !important;
 }
 
-/* ── Minimap nodes — visible against the dark background ──────────────────── */
+/* ── Minimap nodes — visible against the canvas background ────────────────── */
 
 .react-flow__minimap-node {
-  fill: #3a4050;
+  fill: var(--muted-foreground);
   stroke: none;
+}
+
+@theme inline {
+  --font-heading: var(--font-display);
+  --font-sans: 'Lora', ui-serif, Georgia, serif;
+  --font-display: var(--theme-font-display);
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ── Genre display fonts ──────────────────────────────────────────────────── */
+/* Applied only to headings/titles/chrome via font-display — never body copy. */
+
+:root {
+  --radius: 0.5rem;
+  --theme-font-display: 'Special Elite', 'Lora', serif; /* fallback = noir */
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: var(--card);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+}
+
+[data-genre="noir"]    { --theme-font-display: 'Special Elite', 'Lora', serif; }
+[data-genre="fantasy"] { --theme-font-display: 'Playfair Display', 'Lora', serif; }
+[data-genre="horror"]  { --theme-font-display: 'Pirata One', 'Lora', serif; }
+[data-genre="scifi"]   { --theme-font-display: 'Orbitron', 'Lora', sans-serif; }
+
+/* ── Genre × mode palettes ────────────────────────────────────────────────── */
+/* 4 genres × 2 modes = 8 palettes. Noir dark mirrors the app's original look. */
+
+[data-genre="noir"].dark {
+  --background: #0d1117;
+  --foreground: #e6edf3;
+  --card: #161b22;
+  --card-foreground: #e6edf3;
+  --popover: #161b22;
+  --popover-foreground: #e6edf3;
+  --primary: #f5a623;
+  --primary-foreground: #1a1200;
+  --secondary: #1c2333;
+  --secondary-foreground: #e6edf3;
+  --muted: #1c2333;
+  --muted-foreground: #8b949e;
+  --accent: #f5a623;
+  --accent-foreground: #1a1200;
+  --destructive: #f87171;
+  --border: #30363d;
+  --input: #30363d;
+  --ring: #fbbf24;
+}
+
+[data-genre="noir"]:not(.dark) {
+  --background: #f4f1ea;
+  --foreground: #1c1917;
+  --card: #fdfbf5;
+  --card-foreground: #1c1917;
+  --popover: #fdfbf5;
+  --popover-foreground: #1c1917;
+  --primary: #a8650f;
+  --primary-foreground: #fdfbf5;
+  --secondary: #e8e2d2;
+  --secondary-foreground: #1c1917;
+  --muted: #e8e2d2;
+  --muted-foreground: #6b6558;
+  --accent: #a8650f;
+  --accent-foreground: #fdfbf5;
+  --destructive: #b91c1c;
+  --border: #d6d0c4;
+  --input: #d6d0c4;
+  --ring: #a8650f;
+}
+
+[data-genre="fantasy"].dark {
+  --background: #12140f;
+  --foreground: #ece4cf;
+  --card: #1b1f16;
+  --card-foreground: #ece4cf;
+  --popover: #1b1f16;
+  --popover-foreground: #ece4cf;
+  --primary: #d4af37;
+  --primary-foreground: #1a1608;
+  --secondary: #242a1b;
+  --secondary-foreground: #ece4cf;
+  --muted: #242a1b;
+  --muted-foreground: #a39b7f;
+  --accent: #d4af37;
+  --accent-foreground: #1a1608;
+  --destructive: #c1440e;
+  --border: #33392a;
+  --input: #33392a;
+  --ring: #d4af37;
+}
+
+[data-genre="fantasy"]:not(.dark) {
+  --background: #f6efdc;
+  --foreground: #2b2410;
+  --card: #fbf6e8;
+  --card-foreground: #2b2410;
+  --popover: #fbf6e8;
+  --popover-foreground: #2b2410;
+  --primary: #2f5233;
+  --primary-foreground: #f6efdc;
+  --secondary: #ece2c4;
+  --secondary-foreground: #2b2410;
+  --muted: #ece2c4;
+  --muted-foreground: #7a6f4e;
+  --accent: #a9812f;
+  --accent-foreground: #2b2410;
+  --destructive: #8b2c1f;
+  --border: #d8cba0;
+  --input: #d8cba0;
+  --ring: #a9812f;
+}
+
+[data-genre="horror"].dark {
+  --background: #0a0908;
+  --foreground: #d8d2c9;
+  --card: #141110;
+  --card-foreground: #d8d2c9;
+  --popover: #141110;
+  --popover-foreground: #d8d2c9;
+  --primary: #9c2b3a;
+  --primary-foreground: #f5eeec;
+  --secondary: #201b19;
+  --secondary-foreground: #d8d2c9;
+  --muted: #201b19;
+  --muted-foreground: #8a7f78;
+  --accent: #9c2b3a;
+  --accent-foreground: #f5eeec;
+  --destructive: #b0202f;
+  --border: #2c2422;
+  --input: #2c2422;
+  --ring: #9c2b3a;
+}
+
+[data-genre="horror"]:not(.dark) {
+  --background: #ece7e1;
+  --foreground: #1a1512;
+  --card: #f5f1ea;
+  --card-foreground: #1a1512;
+  --popover: #f5f1ea;
+  --popover-foreground: #1a1512;
+  --primary: #7a1b26;
+  --primary-foreground: #f5f1ea;
+  --secondary: #ddd5cc;
+  --secondary-foreground: #1a1512;
+  --muted: #ddd5cc;
+  --muted-foreground: #6e6259;
+  --accent: #7a1b26;
+  --accent-foreground: #f5f1ea;
+  --destructive: #8b1e2b;
+  --border: #cfc6bd;
+  --input: #cfc6bd;
+  --ring: #7a1b26;
+}
+
+[data-genre="scifi"].dark {
+  --background: #060b14;
+  --foreground: #d6ecff;
+  --card: #0e1826;
+  --card-foreground: #d6ecff;
+  --popover: #0e1826;
+  --popover-foreground: #d6ecff;
+  --primary: #22d3ee;
+  --primary-foreground: #04141a;
+  --secondary: #142235;
+  --secondary-foreground: #d6ecff;
+  --muted: #142235;
+  --muted-foreground: #7f9bb3;
+  --accent: #22d3ee;
+  --accent-foreground: #04141a;
+  --destructive: #f43f5e;
+  --border: #1c3247;
+  --input: #1c3247;
+  --ring: #22d3ee;
+}
+
+[data-genre="scifi"]:not(.dark) {
+  --background: #eef4f9;
+  --foreground: #0b1220;
+  --card: #ffffff;
+  --card-foreground: #0b1220;
+  --popover: #ffffff;
+  --popover-foreground: #0b1220;
+  --primary: #0891b2;
+  --primary-foreground: #eef4f9;
+  --secondary: #dbe8f0;
+  --secondary-foreground: #0b1220;
+  --muted: #dbe8f0;
+  --muted-foreground: #52697d;
+  --accent: #0891b2;
+  --accent-foreground: #eef4f9;
+  --destructive: #dc2626;
+  --border: #c5d7e4;
+  --input: #c5d7e4;
+  --ring: #0891b2;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
 }

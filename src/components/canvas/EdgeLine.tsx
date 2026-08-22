@@ -39,12 +39,12 @@ export function EdgeLine({
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)` }}
             className="absolute pointer-events-auto nodrag nopan"
           >
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#161b22] border border-[#30363d] text-[10px] text-[#e6edf3]">
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-card border border-border text-[10px] text-foreground">
               {edgeData?.label}
               {edgeData?.onEdit && (
                 <button
                   onClick={edgeData.onEdit}
-                  className="text-[#8b949e] hover:text-red-400 transition-colors"
+                  className="text-muted-foreground hover:text-red-400 transition-colors"
                 >
                   <Edit2 size={9} />
                 </button>

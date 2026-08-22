@@ -47,18 +47,18 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
     <div
       ref={ref}
       style={style}
-      className="bg-[#1c2333] border border-[#30363d] rounded-lg shadow-2xl py-1 min-w-[160px] select-none"
+      className="bg-popover text-popover-foreground border border-border rounded-lg shadow-md ring-1 ring-foreground/10 p-1 min-w-40 select-none"
     >
       {items.map((item, i) => (
         <div key={i}>
-          {item.separator && <div className="my-1 border-t border-[#30363d]" />}
+          {item.separator && <div className="my-1 border-t border-border" />}
           <button
             onClick={() => { item.onClick(); onClose(); }}
             className={[
-              'w-full flex items-center gap-2.5 px-3 py-1.5 text-[12px] text-left transition-colors',
+              'w-full flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12px] text-left transition-colors',
               item.danger
-                ? 'text-red-400 hover:bg-red-400/10'
-                : 'text-[#e6edf3] hover:bg-[#30363d]',
+                ? 'text-destructive hover:bg-destructive/10'
+                : 'text-popover-foreground hover:bg-accent hover:text-accent-foreground',
             ].join(' ')}
           >
             {item.icon && <span className="opacity-60 flex-shrink-0">{item.icon}</span>}

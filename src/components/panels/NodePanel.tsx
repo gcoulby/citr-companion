@@ -2,12 +2,18 @@ import { useState, useRef } from 'react';
 import { X, Plus, Trash2, Paperclip, FileText, ImagePlus, BookOpen, MapPin, Image } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { useGraphStore } from '../../store/graphStore';
+import { useMysteryStore } from '../../store/mysteryStore';
 import { getAllTags } from '../../graph/graphOps';
 import { assetMap } from '../../hooks/useAutoSave';
 import { cacheAsset, getCachedAsset } from '../../lib/assetCache';
 import { NODE_TYPE_CONFIG, ALL_NODE_TYPES } from '../../lib/nodeTypeConfig';
 import { LocationPickerDialog } from '../dialogs/LocationPickerDialog';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
+import { PlayingCardView } from '../play/PlayingCard';
 import type { NodeAttachment } from '../../types';
+import type { ThreatKind } from '../../game/types';
 
 interface Props {
   nodeId: string;
@@ -17,7 +23,7 @@ interface Props {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[10px] uppercase tracking-wider text-[#8b949e] mb-1.5 font-mono">{children}</div>
+    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 font-mono">{children}</div>
   );
 }
 
@@ -26,6 +32,8 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
   const updateNode = useGraphStore((s) => s.updateNode);
   const deleteNode = useGraphStore((s) => s.deleteNode);
   const allNodes = useGraphStore((s) => s.nodes);
+  const renameThreat = useMysteryStore((s) => s.renameThreat);
+  const updateThreat = useMysteryStore((s) => s.updateThreat);
 
   const [newTag, setNewTag] = useState('');
   const [newPropKey, setNewPropKey] = useState('');
@@ -81,28 +89,28 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
     b < 1024 ? `${b}B` : b < 1048576 ? `${(b / 1024).toFixed(1)}KB` : `${(b / 1048576).toFixed(1)}MB`;
 
   return (
-    <div className="w-80 h-full bg-[#161b22] border-l border-[#30363d] flex flex-col overflow-hidden shrink-0">
+    <div className="w-80 h-full bg-card border-l border-border flex flex-col overflow-hidden shrink-0">
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#30363d] shrink-0">
-        <span className="text-[10px] uppercase tracking-wider text-[#8b949e] font-mono">Node</span>
-        <button onClick={onClose} className="text-[#8b949e] hover:text-[#e6edf3]"><X size={14} /></button>
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border shrink-0">
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono">Node</span>
+        <Button variant="ghost" size="icon-xs" onClick={onClose}><X size={14} /></Button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
 
         {/* Thumbnail */}
-        <div className="border-b border-[#21262d]">
+        <div className="border-b border-border/60">
           {thumbnailUrl ? (
             <div className="relative group">
               <img src={thumbnailUrl} alt="" className="w-full h-36 object-cover" />
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                 <button onClick={() => imgInputRef.current?.click()}
-                  className="px-3 py-1.5 text-xs bg-[#161b22] text-[#e6edf3] rounded border border-[#30363d] hover:border-amber-400/60">
+                  className="px-3 py-1.5 text-xs bg-card text-foreground rounded border border-border hover:border-primary/60">
                   Replace
                 </button>
                 <button onClick={() => updateNode(nodeId, { thumbnail: undefined })}
-                  className="px-3 py-1.5 text-xs bg-[#161b22] text-red-400 rounded border border-red-400/30 hover:border-red-400/60">
+                  className="px-3 py-1.5 text-xs bg-card text-red-400 rounded border border-red-400/30 hover:border-red-400/60">
                   Remove
                 </button>
               </div>
@@ -115,7 +123,7 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
               onClick={() => imgInputRef.current?.click()}
               className={[
                 'flex flex-col items-center gap-1.5 py-5 mx-4 my-3 rounded border border-dashed cursor-pointer transition-colors',
-                imgDragOver ? 'border-amber-400/60 bg-amber-400/5 text-amber-400' : 'border-[#30363d] text-[#484f58] hover:border-[#484f58] hover:text-[#8b949e]',
+                imgDragOver ? 'border-primary/60 bg-primary/5 text-primary' : 'border-border text-muted-foreground/70 hover:border-muted-foreground/40 hover:text-muted-foreground',
               ].join(' ')}
             >
               <ImagePlus size={18} />
@@ -136,7 +144,7 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
                 onClick={() => updateNode(nodeId, { nodeType: undefined })}
                 className={[
                   'px-2 py-0.5 rounded border text-[10px] transition-colors',
-                  !node.nodeType ? 'border-[#484f58] text-[#e6edf3] bg-[#21262d]' : 'border-[#30363d] text-[#484f58] hover:border-[#484f58]',
+                  !node.nodeType ? 'border-muted-foreground/40 text-foreground bg-muted' : 'border-border text-muted-foreground/70 hover:border-muted-foreground/40',
                 ].join(' ')}
               >
                 None
@@ -149,7 +157,7 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
                     onClick={() => updateNode(nodeId, { nodeType: type })}
                     className={[
                       'inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] transition-colors',
-                      node.nodeType === type ? cfg.color : 'border-[#30363d] text-[#484f58] hover:border-[#484f58] hover:text-[#8b949e]',
+                      node.nodeType === type ? cfg.color : 'border-border text-muted-foreground/70 hover:border-muted-foreground/40 hover:text-muted-foreground',
                     ].join(' ')}
                   >
                     {cfg.icon}
@@ -160,46 +168,87 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
             </div>
           </div>
 
-          {/* Mystery metadata — read-only, kept in sync from the Play panel */}
+          {/* Mystery metadata — populated by the Play panel, editable here */}
           {(node.clue || node.truth || node.threat) && (
-            <div className="px-3 py-2 rounded border border-[#30363d] bg-[#0d1117] text-[11px] space-y-0.5 font-mono">
-              {node.clue && <div className="text-[#e6edf3]">Clue {node.clue.rank} · <span className="text-[#8b949e]">{node.clue.status}</span></div>}
-              {node.truth && <div className="text-yellow-300">{node.truth.connection || 'Confirmed truth'}</div>}
-              {node.threat && (
-                <div className={node.threat.defeated ? 'text-[#484f58] line-through' : 'text-red-400'}>
-                  {node.threat.kind === 'rival' ? 'Rival' : 'Threat'} · Level {node.threat.level}{node.threat.defeated ? ' · defeated' : ''}
+            <div className="px-3 py-2.5 rounded border border-border bg-background text-[11px] space-y-2">
+              {node.clue && (
+                <div className="flex items-start gap-2">
+                  {node.clue.card && <PlayingCardView card={node.clue.card} size="sm" />}
+                  <div className="font-mono text-foreground">Clue {node.clue.rank} · <span className="text-muted-foreground">{node.clue.status}</span></div>
                 </div>
               )}
-              <div className="text-[#484f58] text-[10px] normal-case">tracked from the Play panel</div>
+              {node.truth && (
+                <div className="flex items-start gap-2">
+                  {node.truth.card && <PlayingCardView card={node.truth.card} size="sm" />}
+                  <div className="font-mono text-yellow-300">{node.truth.connection || 'Confirmed truth'}</div>
+                </div>
+              )}
+              {node.threat && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={node.threat.kind}
+                      onChange={(e) => {
+                        const kind = e.target.value as ThreatKind;
+                        updateNode(nodeId, { threat: { ...node.threat!, kind } });
+                        if (node.threat!.threatId) updateThreat(node.threat!.threatId, { kind });
+                      }}
+                      className="bg-background border border-border rounded px-1.5 py-0.5 text-[10px] font-mono text-foreground"
+                    >
+                      <option value="threat">Threat</option>
+                      <option value="rival">Rival</option>
+                    </select>
+                    <select
+                      value={node.threat.level}
+                      onChange={(e) => {
+                        const level = Number(e.target.value) as 1 | 2 | 3;
+                        updateNode(nodeId, { threat: { ...node.threat!, level } });
+                        if (node.threat!.threatId) updateThreat(node.threat!.threatId, { level });
+                      }}
+                      className="bg-background border border-border rounded px-1.5 py-0.5 text-[10px] font-mono text-foreground"
+                    >
+                      <option value={1}>Level 1</option>
+                      <option value={2}>Level 2</option>
+                      <option value={3}>Level 3</option>
+                    </select>
+                    {node.threat.defeated && <span className="text-[10px] text-muted-foreground/70">defeated</span>}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground/70 normal-case">
+                    Name is set via the Label field above{node.threat.threatId ? ' and stays in sync with the Play panel' : ''}.
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* Label */}
           <div>
             <SectionLabel>Label</SectionLabel>
-            <input type="text" value={node.label}
-              onChange={(e) => updateNode(nodeId, { label: e.target.value })}
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-1.5 text-[#e6edf3] text-sm focus:outline-none focus:border-amber-400/60"
+            <Input value={node.label}
+              onChange={(e) => {
+                updateNode(nodeId, { label: e.target.value });
+                if (node.threat?.threatId) renameThreat(node.threat.threatId, e.target.value);
+              }}
             />
           </div>
 
           {/* Summary */}
           <div>
             <SectionLabel>Summary</SectionLabel>
-            <textarea value={node.summary ?? ''} rows={2}
+            <Textarea value={node.summary ?? ''} rows={2}
               onChange={(e) => updateNode(nodeId, { summary: e.target.value })}
               placeholder="Brief one-liner…"
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-1.5 text-[#e6edf3] text-sm placeholder-[#3a3f47] focus:outline-none focus:border-amber-400/60 resize-none"
+              className="resize-none"
             />
           </div>
 
           {/* Quick notes */}
           <div>
             <SectionLabel>Quick Notes</SectionLabel>
-            <textarea value={node.notes ?? ''} rows={4}
+            <Textarea value={node.notes ?? ''} rows={4}
               onChange={(e) => updateNode(nodeId, { notes: e.target.value })}
               placeholder="Rapid observations, source URLs, short intel…"
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-1.5 text-[#e6edf3] text-[12px] leading-relaxed placeholder-[#3a3f47] focus:outline-none focus:border-amber-400/60 resize-y font-mono"
+              className="text-[12px] leading-relaxed resize-y font-mono"
             />
           </div>
 
@@ -208,14 +257,14 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
             <SectionLabel>Document</SectionLabel>
             <button
               onClick={() => onOpenEditor(nodeId)}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded border border-[#30363d] hover:border-amber-400/40 hover:bg-amber-400/5 transition-colors group text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors group text-left"
             >
-              <BookOpen size={14} className={node.hasContent ? 'text-amber-400' : 'text-[#484f58] group-hover:text-amber-400'} />
+              <BookOpen size={14} className={node.hasContent ? 'text-primary' : 'text-muted-foreground/70 group-hover:text-primary'} />
               <div>
-                <div className={`text-[12px] font-medium ${node.hasContent ? 'text-amber-400' : 'text-[#8b949e] group-hover:text-[#e6edf3]'}`}>
+                <div className={`text-[12px] font-medium ${node.hasContent ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}>
                   {node.hasContent ? 'Open document' : 'Create document'}
                 </div>
-                <div className="text-[10px] text-[#484f58]">
+                <div className="text-[10px] text-muted-foreground/70">
                   {node.hasContent ? 'Block-based rich text editor' : 'Headings, lists, tables, images…'}
                 </div>
               </div>
@@ -227,25 +276,25 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
             <SectionLabel>Location</SectionLabel>
             {node.location ? (
               <div className="space-y-2">
-                <div className="flex items-start gap-2 px-2 py-2 rounded bg-[#0d1117] border border-[#30363d]">
-                  <MapPin size={12} className="text-amber-400 shrink-0 mt-0.5" />
+                <div className="flex items-start gap-2 px-2 py-2 rounded bg-background border border-border">
+                  <MapPin size={12} className="text-primary shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
                     {node.location.label && (
-                      <div className="text-[11px] text-[#e6edf3] leading-tight mb-0.5 truncate">{node.location.label}</div>
+                      <div className="text-[11px] text-foreground leading-tight mb-0.5 truncate">{node.location.label}</div>
                     )}
-                    <div className="text-[10px] font-mono text-[#6e7681]">
+                    <div className="text-[10px] font-mono text-muted-foreground/80">
                       {node.location.lat.toFixed(5)}, {node.location.lng.toFixed(5)}
                     </div>
                   </div>
                   <button
                     onClick={() => setShowLocationPicker(true)}
-                    className="text-[10px] text-[#8b949e] hover:text-amber-400 transition-colors shrink-0"
+                    className="text-[10px] text-muted-foreground hover:text-primary transition-colors shrink-0"
                   >
                     Edit
                   </button>
                   <button
                     onClick={() => updateNode(nodeId, { location: undefined, featureDisplay: undefined })}
-                    className="text-[#484f58] hover:text-red-400 transition-colors shrink-0"
+                    className="text-muted-foreground/70 hover:text-red-400 transition-colors shrink-0"
                   >
                     <X size={10} />
                   </button>
@@ -254,15 +303,15 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
                 {/* Feature selector — only when both image and location exist */}
                 {node.thumbnail && (
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-[#484f58] mb-1 font-mono">Card Feature</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1 font-mono">Card Feature</div>
                     <div className="flex gap-1.5">
                       <button
                         onClick={() => updateNode(nodeId, { featureDisplay: 'image' })}
                         className={[
                           'flex items-center gap-1.5 px-2.5 py-1 rounded border text-[10px] transition-colors',
                           (node.featureDisplay ?? 'image') === 'image'
-                            ? 'border-amber-400/60 text-amber-400 bg-amber-400/10'
-                            : 'border-[#30363d] text-[#484f58] hover:border-[#484f58]',
+                            ? 'border-primary/60 text-primary bg-primary/10'
+                            : 'border-border text-muted-foreground/70 hover:border-muted-foreground/40',
                         ].join(' ')}
                       >
                         <Image size={10} /> Image
@@ -272,8 +321,8 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
                         className={[
                           'flex items-center gap-1.5 px-2.5 py-1 rounded border text-[10px] transition-colors',
                           node.featureDisplay === 'map'
-                            ? 'border-amber-400/60 text-amber-400 bg-amber-400/10'
-                            : 'border-[#30363d] text-[#484f58] hover:border-[#484f58]',
+                            ? 'border-primary/60 text-primary bg-primary/10'
+                            : 'border-border text-muted-foreground/70 hover:border-muted-foreground/40',
                         ].join(' ')}
                       >
                         <MapPin size={10} /> Map
@@ -285,7 +334,7 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
             ) : (
               <button
                 onClick={() => setShowLocationPicker(true)}
-                className="flex items-center gap-2 text-[11px] text-[#484f58] hover:text-amber-400 transition-colors"
+                className="flex items-center gap-2 text-[11px] text-muted-foreground/70 hover:text-primary transition-colors"
               >
                 <MapPin size={11} /> Add location pin
               </button>
@@ -297,14 +346,14 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
             <SectionLabel>Tags</SectionLabel>
             <div className="flex flex-wrap gap-1 mb-2">
               {node.tags.map((tag) => (
-                <span key={tag} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-[#21262d] text-[#8b949e] border border-[#30363d]">
+                <span key={tag} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
                   {tag}
                   <button onClick={() => updateNode(nodeId, { tags: node.tags.filter((t) => t !== tag) })}
                     className="hover:text-red-400 transition-colors"><X size={9} /></button>
                 </span>
               ))}
             </div>
-            <input type="text" value={newTag} list="tag-suggestions" placeholder="Add tag and press Enter…"
+            <Input value={newTag} list="tag-suggestions" placeholder="Add tag and press Enter…"
               onChange={(e) => setNewTag(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && newTag.trim()) {
@@ -312,7 +361,7 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
                   setNewTag('');
                 }
               }}
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded px-2 py-1 text-[#e6edf3] text-xs placeholder-[#3a3f47] focus:outline-none focus:border-amber-400/60"
+              className="h-7 text-xs"
             />
             <datalist id="tag-suggestions">
               {allTags.filter((t) => !node.tags.includes(t)).map((t) => <option key={t} value={t} />)}
@@ -325,30 +374,30 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
             <div className="space-y-1.5">
               {Object.entries(node.properties).map(([k, v]) => (
                 <div key={k} className="flex gap-1.5 items-center">
-                  <input type="text" value={k}
+                  <Input value={k}
                     onChange={(e) => {
                       const props = { ...node.properties }; delete props[k]; props[e.target.value] = v;
                       updateNode(nodeId, { properties: props });
                     }}
-                    className="w-24 bg-[#0d1117] border border-[#30363d] rounded px-2 py-1 text-[10px] text-[#8b949e] focus:outline-none focus:border-amber-400/60 font-mono"
+                    className="w-24 h-7 text-[10px] text-muted-foreground font-mono"
                   />
-                  <input type="text" value={v}
+                  <Input value={v}
                     onChange={(e) => updateNode(nodeId, { properties: { ...node.properties, [k]: e.target.value } })}
-                    className="flex-1 bg-[#0d1117] border border-[#30363d] rounded px-2 py-1 text-[11px] text-[#e6edf3] focus:outline-none focus:border-amber-400/60"
+                    className="flex-1 h-7 text-[11px]"
                   />
                   <button onClick={() => { const p = { ...node.properties }; delete p[k]; updateNode(nodeId, { properties: p }); }}
-                    className="text-[#484f58] hover:text-red-400 transition-colors">
+                    className="text-muted-foreground/70 hover:text-red-400 transition-colors">
                     <Trash2 size={11} />
                   </button>
                 </div>
               ))}
             </div>
             <div className="flex gap-1.5 mt-2">
-              <input type="text" value={newPropKey} placeholder="key"
+              <Input value={newPropKey} placeholder="key"
                 onChange={(e) => setNewPropKey(e.target.value)}
-                className="w-24 bg-[#0d1117] border border-[#30363d] rounded px-2 py-1 text-[10px] text-[#8b949e] placeholder-[#3a3f47] focus:outline-none focus:border-amber-400/60 font-mono"
+                className="w-24 h-7 text-[10px] text-muted-foreground font-mono"
               />
-              <input type="text" value={newPropVal} placeholder="value"
+              <Input value={newPropVal} placeholder="value"
                 onChange={(e) => setNewPropVal(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && newPropKey.trim()) {
@@ -356,14 +405,14 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
                     setNewPropKey(''); setNewPropVal('');
                   }
                 }}
-                className="flex-1 bg-[#0d1117] border border-[#30363d] rounded px-2 py-1 text-[11px] text-[#e6edf3] placeholder-[#3a3f47] focus:outline-none focus:border-amber-400/60"
+                className="flex-1 h-7 text-[11px]"
               />
               <button onClick={() => {
                 if (newPropKey.trim()) {
                   updateNode(nodeId, { properties: { ...node.properties, [newPropKey.trim()]: newPropVal.trim() } });
                   setNewPropKey(''); setNewPropVal('');
                 }
-              }} className="text-amber-400 hover:text-amber-300"><Plus size={14} /></button>
+              }} className="text-primary hover:text-primary"><Plus size={14} /></button>
             </div>
           </div>
 
@@ -371,19 +420,19 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
           <div>
             <SectionLabel>Attachments</SectionLabel>
             {(node.attachments ?? []).length === 0 ? (
-              <div className="text-[11px] text-[#3a3f47] mb-2">No files attached</div>
+              <div className="text-[11px] text-muted-foreground/40 mb-2">No files attached</div>
             ) : (
               <div className="space-y-1 mb-2">
                 {(node.attachments ?? []).map((att) => (
-                  <div key={att.id} className="flex items-center gap-2 px-2 py-1.5 rounded bg-[#0d1117] border border-[#30363d] group">
-                    <FileText size={10} className="text-[#484f58] shrink-0" />
+                  <div key={att.id} className="flex items-center gap-2 px-2 py-1.5 rounded bg-background border border-border group">
+                    <FileText size={10} className="text-muted-foreground/70 shrink-0" />
                     <button onClick={() => downloadAttachment(att)}
-                      className="flex-1 text-left text-[11px] text-[#8b949e] hover:text-[#e6edf3] truncate transition-colors">
+                      className="flex-1 text-left text-[11px] text-muted-foreground hover:text-foreground truncate transition-colors">
                       {att.filename}
                     </button>
-                    <span className="text-[10px] text-[#3a3f47] font-mono shrink-0">{formatSize(att.size)}</span>
+                    <span className="text-[10px] text-muted-foreground/40 font-mono shrink-0">{formatSize(att.size)}</span>
                     <button onClick={() => removeAttachment(att.id)}
-                      className="text-[#484f58] hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
+                      className="text-muted-foreground/70 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
                       <X size={10} />
                     </button>
                   </div>
@@ -391,7 +440,7 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
               </div>
             )}
             <button onClick={() => attachInputRef.current?.click()}
-              className="flex items-center gap-2 text-[11px] text-[#484f58] hover:text-amber-400 transition-colors">
+              className="flex items-center gap-2 text-[11px] text-muted-foreground/70 hover:text-primary transition-colors">
               <Paperclip size={11} />Attach file
             </button>
             <input ref={attachInputRef} type="file" className="hidden" multiple
@@ -399,7 +448,7 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
           </div>
 
           {/* Timestamps */}
-          <div className="text-[10px] text-[#3a3f47] font-mono space-y-0.5 pb-2">
+          <div className="text-[10px] text-muted-foreground/40 font-mono space-y-0.5 pb-2">
             <div>created {new Date(node.createdAt).toLocaleString()}</div>
             <div>updated {new Date(node.updatedAt).toLocaleString()}</div>
           </div>
@@ -407,11 +456,10 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
       </div>
 
       {/* Delete */}
-      <div className="p-3 border-t border-[#30363d] shrink-0">
-        <button onClick={() => { deleteNode(nodeId); onClose(); }}
-          className="w-full py-1.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded transition-colors">
+      <div className="p-3 border-t border-border shrink-0">
+        <Button variant="destructive" className="w-full" onClick={() => { deleteNode(nodeId); onClose(); }}>
           Delete Node
-        </button>
+        </Button>
       </div>
 
       {showLocationPicker && (
