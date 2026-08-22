@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, Search, X } from 'lucide-react';
+import { MapPin, Search } from 'lucide-react';
 import type { NodeLocation } from '../../types';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 
 interface Props {
   initial?: NodeLocation;
@@ -130,40 +133,31 @@ export function LocationPickerDialog({ initial, onConfirm, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-      <div className="bg-[#161b22] border border-[#30363d] rounded-lg w-[680px] h-[540px] flex flex-col shadow-2xl overflow-hidden">
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#30363d] shrink-0">
-          <div className="flex items-center gap-2">
-            <MapPin size={14} className="text-amber-400" />
-            <span className="text-[11px] uppercase tracking-wider text-[#8b949e] font-mono">Location Picker</span>
-          </div>
-          <button onClick={onClose} className="text-[#8b949e] hover:text-[#e6edf3]"><X size={14} /></button>
-        </div>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-170 h-135 flex flex-col p-0 gap-0 overflow-hidden" showCloseButton={false}>
+        <DialogHeader className="px-4 py-3 border-b border-border">
+          <DialogTitle className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground font-mono font-normal">
+            <MapPin size={14} className="text-primary" /> Location Picker
+          </DialogTitle>
+        </DialogHeader>
 
         {/* Search */}
-        <div className="flex gap-2 px-4 py-2.5 border-b border-[#21262d] shrink-0">
-          <input
-            type="text"
+        <div className="flex gap-2 px-4 py-2.5 border-b border-border/60 shrink-0">
+          <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') void handleSearch(); }}
             placeholder="Search for a place…"
-            className="flex-1 bg-[#0d1117] border border-[#30363d] rounded px-3 py-1.5 text-sm text-[#e6edf3] placeholder-[#484f58] focus:outline-none focus:border-amber-400/60"
+            className="flex-1"
           />
-          <button
-            onClick={() => void handleSearch()}
-            disabled={searching}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#21262d] text-[#8b949e] hover:text-[#e6edf3] rounded border border-[#30363d] hover:border-[#484f58] transition-colors disabled:opacity-50"
-          >
+          <Button variant="outline" size="sm" onClick={() => void handleSearch()} disabled={searching}>
             <Search size={12} />
             {searching ? 'Searching…' : 'Search'}
-          </button>
+          </Button>
         </div>
 
         {searchErr && (
-          <div className="px-4 py-1.5 text-xs text-red-400 border-b border-[#21262d] shrink-0">{searchErr}</div>
+          <div className="px-4 py-1.5 text-xs text-destructive border-b border-border/60 shrink-0">{searchErr}</div>
         )}
 
         {/* Map — isolation: isolate keeps Leaflet's high z-index controls inside this stacking ctx */}
@@ -172,51 +166,36 @@ export function LocationPickerDialog({ initial, onConfirm, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-[#30363d] shrink-0 gap-4">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-border shrink-0 gap-4">
           <div className="flex-1 min-w-0">
             {location ? (
               <div className="space-y-1.5">
-                <div className="text-[10px] font-mono text-[#6e7681]">
+                <div className="text-[10px] font-mono text-muted-foreground/80">
                   {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
                 </div>
-                <input
-                  type="text"
+                <Input
                   value={location.label ?? ''}
                   onChange={(e) => setLocation((prev) => prev ? { ...prev, label: e.target.value } : null)}
                   placeholder="Label (optional)"
-                  className="w-full bg-[#0d1117] border border-[#30363d] rounded px-2 py-1 text-xs text-[#e6edf3] placeholder-[#484f58] focus:outline-none focus:border-amber-400/60"
+                  className="h-7 text-xs"
                 />
               </div>
             ) : (
-              <span className="text-[11px] text-[#484f58]">Click the map to place a pin</span>
+              <span className="text-[11px] text-muted-foreground/70">Click the map to place a pin</span>
             )}
           </div>
 
           <div className="flex gap-2 shrink-0">
             {location && (
-              <button
-                onClick={clearLocation}
-                className="px-3 py-1.5 text-xs text-red-400 hover:text-red-300 border border-red-400/30 hover:border-red-400/60 rounded transition-colors"
-              >
-                Clear
-              </button>
+              <Button variant="destructive" size="sm" onClick={clearLocation}>Clear</Button>
             )}
-            <button
-              onClick={onClose}
-              className="px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#e6edf3] border border-[#30363d] hover:border-[#484f58] rounded transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => { if (location) onConfirm(location); }}
-              disabled={!location}
-              className="px-3 py-1.5 text-xs bg-amber-400 text-[#0d1117] font-semibold rounded hover:bg-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
+            <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+            <Button size="sm" onClick={() => { if (location) onConfirm(location); }} disabled={!location}>
               Set Location
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

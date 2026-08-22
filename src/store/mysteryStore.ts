@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import type {
-  Mystery, MysteryProblem, ClueRank, InvestigationStage, ThreatKind, ResolveQuestion,
+  Mystery, MysteryProblem, ClueRank, ClueSet, InvestigationStage, ThreatKind, ThreatEntry, ResolveQuestion,
 } from '../game/types';
 import { buildClueDeck, buildTruthDeck, shuffle, drawOne, drawMany } from '../game/deck';
 import {
@@ -9,6 +9,8 @@ import {
   type ConsequenceRollResult, type AttributeTestResult, type InvestigationRollResult,
 } from '../game/dice';
 import { useInvestigatorStore } from './investigatorStore';
+import { useSettingsStore } from './settingsStore';
+import { useGraphStore } from './graphStore';
 import type { Attribute } from '../game/types';
 
 function emptyMystery(): Mystery {
@@ -36,6 +38,16 @@ function emptyMystery(): Mystery {
 
 const STAGE_ORDER: InvestigationStage[] = ['infiltration', 'discovery', 'acquisition', 'escape'];
 
+// Keeps a board node's clue metadata (card shown, status) in sync whenever
+// its clue set changes after "Add to board" — otherwise the board would
+// keep showing whichever card happened to be attached at creation time,
+// even once the set is strengthened with another card or resolved.
+function syncBoardClueNode(cs: ClueSet) {
+  if (!cs.boardNodeId) return;
+  const card = cs.cards[cs.cards.length - 1];
+  useGraphStore.getState().updateNode(cs.boardNodeId, { clue: { rank: cs.rank, status: cs.status, card } });
+}
+
 export type ClueDrawResult =
   | { kind: 'empty' }
   | { kind: 'established'; rank: ClueRank }
@@ -48,7 +60,10 @@ export type ClueDrawResult =
 interface MysteryStoreState extends Mystery {
   // ── Setup ──────────────────────────────────────────────────────────────
   createMystery: (problem: MysteryProblem, motivation: string) => void;
+  updateProblem: (patch: Partial<MysteryProblem>) => void;
+  setMotivation: (motivation: string) => void;
   setLingeringQuestion: (text: string) => void;
+  setDanger: (danger: number) => void;
   log: Mystery['log'];
   addLog: (text: string) => void;
 
@@ -60,6 +75,8 @@ interface MysteryStoreState extends Mystery {
   resolveThreatActions: (excludeIds?: string[]) => { threatId: string; roll: ConsequenceRollResult }[];
   actAgainstThreat: (threatId: string, attribute: Attribute) => AttributeTestResult | null;
   addThreat: (level: 1 | 2 | 3, kind?: ThreatKind, name?: string) => string;
+  renameThreat: (threatId: string, name: string) => void;
+  updateThreat: (threatId: string, patch: Partial<Pick<ThreatEntry, 'level' | 'kind'>>) => void;
 
   // ── Clue deck ──────────────────────────────────────────────────────────
   drawClueCard: () => ClueDrawResult;
@@ -75,6 +92,9 @@ interface MysteryStoreState extends Mystery {
 
   // ── Clock / day ────────────────────────────────────────────────────────
   endScene: () => { newDay: boolean };
+  advanceDay: () => void;
+  setDay: (day: number) => void;
+  setClockMarks: (marks: number) => void;
 
   // ── Resolve ────────────────────────────────────────────────────────────
   setGuess: (question: ResolveQuestion, clueSetId: string | null) => void;
@@ -115,6 +135,10 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => ({
       log: [{ id: nanoid(), ts: Date.now(), text: `It happened at the ${problem.location}. That's where the ${problem.object} ${problem.treachery}...` }],
     });
   },
+
+  updateProblem: (patch) => set((s) => ({ problem: { ...s.problem, ...patch } })),
+  setMotivation: (motivation) => set({ motivation }),
+  setDanger: (danger) => set({ danger: Math.max(0, danger) }),
 
   setLingeringQuestion: (text) => set({ lingeringQuestion: text }),
 
@@ -220,6 +244,12 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => ({
     return id;
   },
 
+  renameThreat: (threatId, name) =>
+    set((s) => ({ threats: s.threats.map((t) => (t.id === threatId ? { ...t, name } : t)) })),
+
+  updateThreat: (threatId, patch) =>
+    set((s) => ({ threats: s.threats.map((t) => (t.id === threatId ? { ...t, ...patch } : t)) })),
+
   // ── Clue deck ─────────────────────────────────────────────────────────
 
   drawClueCard: () => {
@@ -253,8 +283,10 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => ({
       if (existing?.status === 'truth') { discard = [...discard, card]; continue; }
 
       if (existing) {
-        clueSets = { ...clueSets, [rank]: { ...existing, cards: [...existing.cards, card], status: 'strengthened' } };
+        const updated: ClueSet = { ...existing, cards: [...existing.cards, card], status: 'strengthened' };
+        clueSets = { ...clueSets, [rank]: updated };
         set({ clueDeck: deck, clueDiscard: discard, clueSets });
+        syncBoardClueNode(updated);
         result = { kind: 'strengthened', rank };
       } else {
         clueSets = { ...clueSets, [rank]: { id: rank, rank, description: '', cards: [card], status: 'established' } };
@@ -270,9 +302,11 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => ({
     set((s) => {
       const cs = s.clueSets[clueSetId];
       if (!cs) return {};
+      const updated: ClueSet = { ...cs, cards: [], status: 'falseLead' };
+      syncBoardClueNode(updated);
       return {
         clueDiscard: [...s.clueDiscard, ...cs.cards],
-        clueSets: { ...s.clueSets, [clueSetId]: { ...cs, cards: [], status: 'falseLead' } },
+        clueSets: { ...s.clueSets, [clueSetId]: updated },
       };
     });
   },
@@ -307,10 +341,12 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => ({
     if (!cs || cs.status === 'truth' || cs.status === 'falseLead') return null;
     const n = cs.cards.length;
     const { cards, remaining } = drawMany(s.truthDeck, n);
+    const updated: ClueSet = { ...cs, status: 'truth' };
+    syncBoardClueNode(updated);
     set({
       truthDeck: remaining,
       truthDiscard: [...s.truthDiscard, ...cards],
-      clueSets: { ...s.clueSets, [clueSetId]: { ...cs, status: 'truth' } },
+      clueSets: { ...s.clueSets, [clueSetId]: updated },
     });
     return cards;
   },
@@ -330,9 +366,10 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => ({
 
   endScene: () => {
     let newDay = false;
+    const autoAdvanceDay = useSettingsStore.getState().automations.autoAdvanceDay;
     set((s) => {
-      const clockMarks = s.clockMarks + 1;
-      if (clockMarks >= 4) {
+      const clockMarks = Math.min(s.clockMarks + 1, 4);
+      if (clockMarks >= 4 && autoAdvanceDay) {
         newDay = true;
         const inv = useInvestigatorStore.getState();
         const unstruck = inv.obligations.filter((o) => !o.struck).length;
@@ -344,6 +381,21 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => ({
     });
     return { newDay };
   },
+
+  // Manual escape hatch when the "auto advance day" automation is switched
+  // off — applies the same end-of-day effects the automatic path would.
+  advanceDay: () => {
+    set((s) => {
+      const inv = useInvestigatorStore.getState();
+      const unstruck = inv.obligations.filter((o) => !o.struck).length;
+      if (unstruck > 0) inv.gainFatigue(unstruck);
+      inv.obligations.forEach((o) => { if (o.struck) inv.strikeObligation(o.id, false); });
+      return { clockMarks: 0, day: s.day + 1 };
+    });
+  },
+
+  setDay: (day) => set({ day: Math.max(1, Math.round(day)) }),
+  setClockMarks: (marks) => set({ clockMarks: Math.max(0, Math.min(4, Math.round(marks))) }),
 
   // ── Resolve ───────────────────────────────────────────────────────────
 

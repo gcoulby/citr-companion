@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { useMysteryStore, type ClueDrawResult } from '../../store/mysteryStore';
 import { useInvestigatorStore } from '../../store/investigatorStore';
 import { useGraphStore } from '../../store/graphStore';
-import { ATTRIBUTES, type Attribute, type ClueStatus } from '../../game/types';
+import { useSettingsStore } from '../../store/settingsStore';
+import { ATTRIBUTES, type Attribute, type ClueStatus, type PlayingCard } from '../../game/types';
 import type { AttributeTestResult, InvestigationRollResult, ConsequenceRollResult } from '../../game/dice';
-import { cardLabel } from '../../game/deck';
 import { SectionLabel, Badge, SmallButton, TextInput, TextArea } from './ui';
+import { PlayingCardView } from './PlayingCard';
+import { ClueTable } from './ClueTable';
+import { Pencil } from 'lucide-react';
 
 const ATTRIBUTE_LABELS: Record<Attribute, string> = { power: 'Power', insight: 'Insight', method: 'Method' };
 const CLUE_STATUS_TONE: Record<ClueStatus, 'default' | 'amber' | 'gold' | 'red'> = {
@@ -23,9 +26,9 @@ function CreateMysteryForm() {
 
   return (
     <div className="p-4 space-y-4">
-      <div className="text-[11px] text-[#8b949e] leading-relaxed">
-        "It happened at the <span className="text-[#e6edf3]">[location]</span>. That's where the{' '}
-        <span className="text-[#e6edf3]">[object]</span> <span className="text-[#e6edf3]">[treachery]</span>."
+      <div className="text-[11px] text-muted-foreground leading-relaxed">
+        "It happened at the <span className="text-foreground">[location]</span>. That's where the{' '}
+        <span className="text-foreground">[object]</span> <span className="text-foreground">[treachery]</span>."
       </div>
       <div>
         <SectionLabel>Location</SectionLabel>
@@ -46,7 +49,7 @@ function CreateMysteryForm() {
       <button
         disabled={!ready}
         onClick={() => createMystery({ location: location.trim(), object: object.trim(), treachery: treachery.trim() }, motivation.trim())}
-        className="w-full py-2 rounded border border-amber-400/40 text-amber-400 text-[12px] hover:bg-amber-400/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        className="w-full py-2 rounded border border-primary/40 text-primary text-[12px] hover:bg-primary/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
       >
         Begin the mystery — seal 3 truth cards
       </button>
@@ -54,11 +57,16 @@ function CreateMysteryForm() {
   );
 }
 
-function Clock({ marks }: { marks: number }) {
+function Clock({ marks, onSet }: { marks: number; onSet: (marks: number) => void }) {
   return (
     <div className="flex gap-1">
       {[0, 1, 2, 3].map((i) => (
-        <div key={i} className={`w-5 h-5 rounded-full border ${i < marks ? 'bg-amber-400/30 border-amber-400/60' : 'border-[#30363d]'}`} />
+        <button
+          key={i}
+          title={`Set clock to ${i + 1}/4`}
+          onClick={() => onSet(marks === i + 1 ? i : i + 1)}
+          className={`w-5 h-5 rounded-full border transition-colors ${i < marks ? 'bg-primary/30 border-primary/60' : 'border-border hover:border-muted-foreground/40'}`}
+        />
       ))}
     </div>
   );
@@ -75,11 +83,15 @@ export function MysteryTab() {
   const [lastInvestigationRoll, setLastInvestigationRoll] = useState<InvestigationRollResult | null>(null);
   const [lastConsequence, setLastConsequence] = useState<ConsequenceRollResult | null>(null);
   const [jokerChoice, setJokerChoice] = useState<string[] | null>(null);
-  const [truthDrawn, setTruthDrawn] = useState<string[] | null>(null);
+  const [truthDrawn, setTruthDrawn] = useState<PlayingCard[] | null>(null);
   const [truthSceneClue, setTruthSceneClue] = useState('');
   const [obligationChoice, setObligationChoice] = useState('');
   const [newDayNotice, setNewDayNotice] = useState(false);
   const [restNotice, setRestNotice] = useState<number | null>(null);
+  const [editingProblem, setEditingProblem] = useState(false);
+  const [editingThreatId, setEditingThreatId] = useState<string | null>(null);
+  const [clueDrawnForTest, setClueDrawnForTest] = useState(false);
+  const autoAdvanceDay = useSettingsStore((s) => s.automations.autoAdvanceDay);
 
   if (!m.started) return <CreateMysteryForm />;
 
@@ -88,14 +100,17 @@ export function MysteryTab() {
   const truthCandidates = clueSetList.filter((cs) => cs.status !== 'truth' && cs.status !== 'falseLead');
 
   const handleDraw = () => {
+    if (clueDrawnForTest) return;
     const result: ClueDrawResult = m.drawClueCard();
     if (result.kind === 'jokerChoice') setJokerChoice(result.candidateClueSetIds);
+    setClueDrawnForTest(true);
   };
 
   const handleAddClueToBoard = (rank: string) => {
     const cs = m.clueSets[rank];
     if (!cs) return;
     if (cs.boardNodeId) return;
+    const card = cs.cards[cs.cards.length - 1];
     const node = addNode({
       label: `Clue ${rank}`,
       summary: cs.description,
@@ -103,12 +118,12 @@ export function MysteryTab() {
       hasContent: false,
       properties: {},
       nodeType: 'clue',
-      clue: { rank, status: cs.status },
+      clue: { rank, status: cs.status, card },
     });
     m.addClueToBoard(rank, node.id);
   };
 
-  const handleCreateTruthNode = (rank: string) => {
+  const handleCreateTruthNode = (rank: string, card?: PlayingCard) => {
     const cs = m.clueSets[rank];
     if (!cs) return;
     const truthNode = addNode({
@@ -118,7 +133,7 @@ export function MysteryTab() {
       hasContent: false,
       properties: {},
       nodeType: 'truth',
-      truth: { connection: cs.description },
+      truth: { connection: cs.description, card },
     });
     if (cs.boardNodeId) addEdge({ source: cs.boardNodeId, target: truthNode.id, label: 'confirms' });
   };
@@ -133,35 +148,81 @@ export function MysteryTab() {
       hasContent: false,
       properties: {},
       nodeType: 'threat',
-      threat: { level: t.level, kind: t.kind, defeated: t.defeated },
+      threat: { threatId: t.id, level: t.level, kind: t.kind, defeated: t.defeated },
     });
   };
 
   return (
     <div className="p-4 space-y-5">
       <div>
-        <div className="text-[11px] text-[#8b949e] leading-relaxed">
-          It happened at the <span className="text-[#e6edf3]">{m.problem.location}</span>. That's where the{' '}
-          <span className="text-[#e6edf3]">{m.problem.object}</span> <span className="text-[#e6edf3]">{m.problem.treachery}</span>.
-        </div>
-        {m.motivation && <div className="text-[10px] text-[#484f58] mt-1 italic">{m.motivation}</div>}
+        {editingProblem ? (
+          <div className="space-y-2 p-2.5 rounded border border-border bg-background">
+            <div>
+              <SectionLabel>Location</SectionLabel>
+              <TextInput value={m.problem.location} onChange={(e) => m.updateProblem({ location: e.target.value })} />
+            </div>
+            <div>
+              <SectionLabel>Object</SectionLabel>
+              <TextInput value={m.problem.object} onChange={(e) => m.updateProblem({ object: e.target.value })} />
+            </div>
+            <div>
+              <SectionLabel>Treachery</SectionLabel>
+              <TextInput value={m.problem.treachery} onChange={(e) => m.updateProblem({ treachery: e.target.value })} />
+            </div>
+            <div>
+              <SectionLabel>Motivation</SectionLabel>
+              <TextArea rows={2} value={m.motivation} onChange={(e) => m.setMotivation(e.target.value)} />
+            </div>
+            <SmallButton onClick={() => setEditingProblem(false)}>Done</SmallButton>
+          </div>
+        ) : (
+          <div className="group relative">
+            <div className="text-[11px] text-muted-foreground leading-relaxed pr-5">
+              It happened at the <span className="text-foreground">{m.problem.location}</span>. That's where the{' '}
+              <span className="text-foreground">{m.problem.object}</span> <span className="text-foreground">{m.problem.treachery}</span>.
+            </div>
+            {m.motivation && <div className="text-[10px] text-muted-foreground/70 mt-1 italic pr-5">{m.motivation}</div>}
+            <button
+              onClick={() => setEditingProblem(true)}
+              className="absolute top-0 right-0 text-muted-foreground/50 opacity-0 group-hover:opacity-100 hover:text-primary transition-opacity"
+              title="Edit mystery setup"
+            >
+              <Pencil size={11} />
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between">
         <div>
           <SectionLabel>Danger</SectionLabel>
-          <div className="w-9 h-9 rounded border border-amber-400/40 rotate-45 flex items-center justify-center">
-            <span className="text-[13px] font-mono text-amber-400 -rotate-45">{m.danger}</span>
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => m.setDanger(m.danger - 1)} className="w-4 h-4 flex items-center justify-center rounded border border-border text-muted-foreground hover:text-primary hover:border-primary/40 text-[11px] leading-none">–</button>
+            <div className="w-9 h-9 rounded border border-primary/40 rotate-45 flex items-center justify-center">
+              <span className="text-[13px] font-mono text-primary -rotate-45">{m.danger}</span>
+            </div>
+            <button onClick={() => m.setDanger(m.danger + 1)} className="w-4 h-4 flex items-center justify-center rounded border border-border text-muted-foreground hover:text-primary hover:border-primary/40 text-[11px] leading-none">+</button>
           </div>
         </div>
         <div>
-          <SectionLabel>Day {m.day}</SectionLabel>
-          <Clock marks={m.clockMarks} />
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <button onClick={() => m.setDay(m.day - 1)} className="w-4 h-4 flex items-center justify-center rounded border border-border text-muted-foreground hover:text-primary hover:border-primary/40 text-[11px] leading-none">–</button>
+            <SectionLabel>Day {m.day}</SectionLabel>
+            <button onClick={() => m.setDay(m.day + 1)} className="w-4 h-4 flex items-center justify-center rounded border border-border text-muted-foreground hover:text-primary hover:border-primary/40 text-[11px] leading-none">+</button>
+          </div>
+          <Clock marks={m.clockMarks} onSet={m.setClockMarks} />
         </div>
       </div>
 
+      {!autoAdvanceDay && m.clockMarks >= 4 && (
+        <div className="px-2.5 py-1.5 rounded bg-primary/10 border border-primary/30 text-[11px] text-primary space-y-1.5">
+          <div>Clock is full — auto day advance is off. Advance manually when ready.</div>
+          <SmallButton tone="amber" onClick={() => { m.advanceDay(); setNewDayNotice(true); }}>Advance to Day {m.day + 1}</SmallButton>
+        </div>
+      )}
+
       {newDayNotice && (
-        <div className="px-2.5 py-1.5 rounded bg-amber-400/10 border border-amber-400/30 text-[11px] text-amber-400">
+        <div className="px-2.5 py-1.5 rounded bg-primary/10 border border-primary/30 text-[11px] text-primary">
           A new day has begun — unattended obligations cost fatigue, strikes cleared.
         </div>
       )}
@@ -170,7 +231,7 @@ export function MysteryTab() {
         <div>
           <SectionLabel>Start a scene</SectionLabel>
           <div className="grid grid-cols-2 gap-1.5">
-            <SmallButton onClick={() => { setLastInvestigationRoll(m.startInvestigationScene()); setNewDayNotice(false); }}>Investigation</SmallButton>
+            <SmallButton onClick={() => { setLastInvestigationRoll(m.startInvestigationScene()); setNewDayNotice(false); setClueDrawnForTest(false); }}>Investigation</SmallButton>
             <SmallButton onClick={() => setTruthSceneClue(truthCandidates[0]?.id ?? '')} disabled={truthCandidates.length === 0}>Truth</SmallButton>
             <SmallButton onClick={() => setObligationChoice(inv.obligations.find((o) => !o.struck)?.id ?? '')} disabled={inv.obligations.every((o) => o.struck) || inv.obligations.length === 0}>
               Obligation
@@ -178,52 +239,52 @@ export function MysteryTab() {
             <SmallButton onClick={() => setRestNotice(m.runRestScene())}>Rest</SmallButton>
           </div>
           {restNotice !== null && (
-            <div className="mt-2 text-[11px] text-[#8b949e]">Cleared {restNotice} fatigue, strikes cleared, discarded a clue card.</div>
+            <div className="mt-2 text-[11px] text-muted-foreground">Cleared {restNotice} fatigue, strikes cleared, discarded a clue card.</div>
           )}
         </div>
       ) : (
-        <div className="space-y-3 p-2.5 rounded border border-[#30363d] bg-[#0d1117]">
+        <div className="space-y-3 p-2.5 rounded border border-border bg-background">
           <div className="flex items-center justify-between">
             <SectionLabel>Investigation scene</SectionLabel>
             <Badge tone="amber">{m.scene.stage}</Badge>
           </div>
           {lastInvestigationRoll && (
-            <div className="text-[10px] text-[#484f58]">rolled {lastInvestigationRoll.roll} + danger {lastInvestigationRoll.danger} = {lastInvestigationRoll.total}</div>
+            <div className="text-[10px] text-muted-foreground/70">rolled {lastInvestigationRoll.roll} + danger {lastInvestigationRoll.danger} = {lastInvestigationRoll.total}</div>
           )}
 
           <div>
-            <div className="text-[10px] text-[#8b949e] mb-1">Attribute test</div>
+            <div className="text-[10px] text-muted-foreground mb-1">Attribute test</div>
             <div className="flex gap-1 mb-1.5">
               {ATTRIBUTES.map((a) => (
                 <button key={a} disabled={inv.struckAttributes.includes(a)}
                   onClick={() => setTestAttr(a)}
-                  className={`flex-1 px-2 py-1 rounded border text-[10px] transition-colors disabled:opacity-30 ${testAttr === a ? 'border-amber-400/60 text-amber-400 bg-amber-400/10' : 'border-[#30363d] text-[#8b949e]'}`}>
+                  className={`flex-1 px-2 py-1 rounded border text-[10px] transition-colors disabled:opacity-30 ${testAttr === a ? 'border-primary/60 text-primary bg-primary/10' : 'border-border text-muted-foreground'}`}>
                   {ATTRIBUTE_LABELS[a]} ({inv.attributes[a]})
                 </button>
               ))}
             </div>
-            <SmallButton onClick={() => setLastTest(m.runAttributeTest(testAttr))}>Roll test</SmallButton>
+            <SmallButton onClick={() => { setLastTest(m.runAttributeTest(testAttr)); setClueDrawnForTest(false); }}>Roll test</SmallButton>
             {lastTest && (
               <div className="mt-1.5 text-[11px] space-y-1">
-                <div className="text-[#e6edf3] font-mono">
+                <div className="text-foreground font-mono">
                   {lastTest.roll.a}+{lastTest.roll.b}+{lastTest.attributeValue} = {lastTest.total} —{' '}
-                  <span className={lastTest.outcome === 'success' ? 'text-green-400' : lastTest.outcome === 'cost' ? 'text-amber-400' : 'text-red-400'}>
+                  <span className={lastTest.outcome === 'success' ? 'text-green-400' : lastTest.outcome === 'cost' ? 'text-primary' : 'text-red-400'}>
                     {lastTest.outcome === 'success' ? 'Success' : lastTest.outcome === 'cost' ? 'Success at a cost' : 'Failure'}
                   </span>
                 </div>
-                {lastTest.randomEvent && <div className="text-[#8b949e]">Doubles — a random event occurs.</div>}
-                {lastTest.belowDanger && <div className="text-[#8b949e]">Below danger — a level 1 threat appears, danger halved.</div>}
+                {lastTest.randomEvent && <div className="text-muted-foreground">Doubles — a random event occurs.</div>}
+                {lastTest.belowDanger && <div className="text-muted-foreground">Below danger — a level 1 threat appears, danger halved.</div>}
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   {lastTest.outcome !== 'success' && (
                     <SmallButton onClick={() => setLastConsequence(m.applyConsequences(0))}>Suffer consequences</SmallButton>
                   )}
                   {(lastTest.outcome === 'success' || m.scene.stage === 'acquisition') && (
-                    <SmallButton onClick={handleDraw}>Draw clue</SmallButton>
+                    <SmallButton onClick={handleDraw} disabled={clueDrawnForTest}>{clueDrawnForTest ? 'Clue drawn' : 'Draw clue'}</SmallButton>
                   )}
                   <SmallButton onClick={() => m.advanceStage()}>Advance stage</SmallButton>
                 </div>
                 {lastConsequence && (
-                  <div className="text-[#8b949e]">consequence roll {lastConsequence.roll}+{lastConsequence.bonus} = {lastConsequence.total} → {lastConsequence.outcome}</div>
+                  <div className="text-muted-foreground">consequence roll {lastConsequence.roll}+{lastConsequence.bonus} = {lastConsequence.total} → {lastConsequence.outcome}</div>
                 )}
               </div>
             )}
@@ -231,11 +292,11 @@ export function MysteryTab() {
 
           {activeThreats.length > 0 && (
             <div>
-              <div className="text-[10px] text-[#8b949e] mb-1">Threats</div>
+              <div className="text-[10px] text-muted-foreground mb-1">Threats</div>
               <div className="space-y-1">
                 {activeThreats.map((t) => (
                   <div key={t.id} className="flex items-center gap-1.5">
-                    <span className="flex-1 text-[11px] text-[#e6edf3]">{t.name}</span>
+                    <span className="flex-1 text-[11px] text-foreground">{t.name}</span>
                     <Badge tone={t.kind === 'rival' ? 'red' : 'default'}>L{t.level} · {t.marks}/{t.level}</Badge>
                     <SmallButton onClick={() => m.actAgainstThreat(t.id, testAttr)}>Act</SmallButton>
                   </div>
@@ -257,38 +318,41 @@ export function MysteryTab() {
           )}
 
           <button onClick={() => { const r = m.endScene(); setNewDayNotice(r.newDay); setLastTest(null); setLastConsequence(null); setLastInvestigationRoll(null); }}
-            className="w-full py-1.5 rounded border border-[#30363d] text-[11px] text-[#8b949e] hover:text-[#e6edf3] transition-colors">
+            className="w-full py-1.5 rounded border border-border text-[11px] text-muted-foreground hover:text-foreground transition-colors">
             End scene
           </button>
         </div>
       )}
 
       {truthSceneClue && (
-        <div className="p-2.5 rounded border border-[#30363d] bg-[#0d1117] space-y-2">
+        <div className="p-2.5 rounded border border-border bg-background space-y-2">
           <SectionLabel>Truth scene</SectionLabel>
           <select value={truthSceneClue} onChange={(e) => setTruthSceneClue(e.target.value)}
-            className="w-full bg-[#0d1117] border border-[#30363d] rounded px-2 py-1 text-[11px] text-[#e6edf3]">
+            className="w-full bg-background border border-border rounded px-2 py-1 text-[11px] text-foreground">
             {truthCandidates.map((cs) => <option key={cs.id} value={cs.id}>Clue {cs.rank} ({cs.cards.length} cards)</option>)}
           </select>
           <SmallButton onClick={() => {
             const drawn = m.runTruthScene(truthSceneClue);
-            setTruthDrawn(drawn ? drawn.map(cardLabel) : null);
+            setTruthDrawn(drawn ?? null);
           }}>Rotate &amp; draw truth cards</SmallButton>
           {truthDrawn && (
             <div className="space-y-1.5">
-              <div className="text-[11px] text-[#e6edf3]">Drawn: {truthDrawn.join(', ')} — describe what connection confirms this truth in the clue's description below.</div>
-              <SmallButton onClick={() => handleCreateTruthNode(truthSceneClue)}>Create truth node</SmallButton>
+              <div className="flex flex-wrap gap-1.5">
+                {truthDrawn.map((c) => <PlayingCardView key={c.id} card={c} size="sm" />)}
+              </div>
+              <div className="text-[11px] text-foreground">Describe what connection confirms this truth in the clue's description below.</div>
+              <SmallButton onClick={() => handleCreateTruthNode(truthSceneClue, truthDrawn[0])}>Create truth node</SmallButton>
             </div>
           )}
-          <button onClick={() => { setTruthSceneClue(''); setTruthDrawn(null); }} className="text-[10px] text-[#484f58] hover:text-[#8b949e]">Close</button>
+          <button onClick={() => { setTruthSceneClue(''); setTruthDrawn(null); }} className="text-[10px] text-muted-foreground/70 hover:text-muted-foreground">Close</button>
         </div>
       )}
 
       {obligationChoice && (
-        <div className="p-2.5 rounded border border-[#30363d] bg-[#0d1117] space-y-2">
+        <div className="p-2.5 rounded border border-border bg-background space-y-2">
           <SectionLabel>Obligation scene</SectionLabel>
           <select value={obligationChoice} onChange={(e) => setObligationChoice(e.target.value)}
-            className="w-full bg-[#0d1117] border border-[#30363d] rounded px-2 py-1 text-[11px] text-[#e6edf3]">
+            className="w-full bg-background border border-border rounded px-2 py-1 text-[11px] text-foreground">
             {inv.obligations.filter((o) => !o.struck).map((o) => <option key={o.id} value={o.id}>{o.text}</option>)}
           </select>
           <SmallButton onClick={() => { m.runObligationScene(obligationChoice); setObligationChoice(''); }}>Attend to it</SmallButton>
@@ -296,19 +360,29 @@ export function MysteryTab() {
       )}
 
       <div>
+        <SectionLabel>Clue table</SectionLabel>
+        <ClueTable clueSets={m.clueSets} />
+      </div>
+
+      <div>
         <SectionLabel>Clue sets</SectionLabel>
         <div className="space-y-2">
-          {clueSetList.length === 0 && <div className="text-[11px] text-[#3a3f47]">No clues yet</div>}
+          {clueSetList.length === 0 && <div className="text-[11px] text-muted-foreground/40">No clues yet</div>}
           {clueSetList.map((cs) => (
-            <div key={cs.id} className="p-2 rounded border border-[#30363d] bg-[#0d1117]">
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="text-[11px] font-mono text-[#e6edf3]">Clue {cs.rank}</span>
-                <Badge tone={CLUE_STATUS_TONE[cs.status]}>{cs.status}</Badge>
-                <span className="text-[9px] text-[#484f58] ml-auto">{cs.cards.length} card{cs.cards.length === 1 ? '' : 's'}</span>
+            <div key={cs.id} className="p-2 rounded border border-border bg-background">
+              <div className="flex items-start gap-2 mb-1.5">
+                {cs.cards.length > 0 && <PlayingCardView card={cs.cards[cs.cards.length - 1]} size="sm" />}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-[11px] font-mono text-foreground">Clue {cs.rank}</span>
+                    <Badge tone={CLUE_STATUS_TONE[cs.status]}>{cs.status}</Badge>
+                    <span className="text-[9px] text-muted-foreground/70 ml-auto">{cs.cards.length} card{cs.cards.length === 1 ? '' : 's'}</span>
+                  </div>
+                  <TextArea rows={2} value={cs.description} placeholder="What is this clue?"
+                    onChange={(e) => m.setClueDescription(cs.rank, e.target.value)}
+                    className="text-[11px]" />
+                </div>
               </div>
-              <TextArea rows={2} value={cs.description} placeholder="What is this clue?"
-                onChange={(e) => m.setClueDescription(cs.rank, e.target.value)}
-                className="text-[11px] mb-1.5" />
               {cs.boardNodeId ? (
                 <Badge tone="green">on board</Badge>
               ) : (
@@ -325,7 +399,23 @@ export function MysteryTab() {
           <div className="space-y-1">
             {m.threats.map((t) => (
               <div key={t.id} className="flex items-center gap-1.5 text-[11px]">
-                <span className={`flex-1 ${t.defeated ? 'text-[#484f58] line-through' : 'text-[#e6edf3]'}`}>{t.name}</span>
+                {editingThreatId === t.id ? (
+                  <TextInput
+                    autoFocus
+                    value={t.name}
+                    onChange={(e) => m.renameThreat(t.id, e.target.value)}
+                    onBlur={() => setEditingThreatId(null)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setEditingThreatId(null); }}
+                    className="flex-1 h-6 text-[11px]"
+                  />
+                ) : (
+                  <button
+                    onClick={() => setEditingThreatId(t.id)}
+                    className={`flex-1 text-left hover:underline ${t.defeated ? 'text-muted-foreground/70 line-through' : 'text-foreground'}`}
+                  >
+                    {t.name}
+                  </button>
+                )}
                 <Badge tone={t.defeated ? 'default' : t.kind === 'rival' ? 'red' : 'default'}>L{t.level}</Badge>
                 <SmallButton onClick={() => handleAddThreatToBoard(t.id)}>Add to board</SmallButton>
               </div>

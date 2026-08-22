@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { Lock, Eye, EyeOff } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 
 interface Props {
   mode: 'unlock' | 'set';
@@ -22,78 +25,64 @@ export function PasswordDialog({ mode, filename, error, onSubmit, onCancel }: Pr
   const submit = () => { if (canSubmit) onSubmit(pass); };
 
   return (
-    <div className="fixed inset-0 bg-[#0d1117]/95 flex items-center justify-center z-50">
-      <div className="bg-[#161b22] border border-[#30363d] rounded-lg p-8 w-[400px] shadow-2xl">
-        <div className="flex items-center gap-2.5 mb-5">
-          <Lock size={16} className="text-amber-400" />
-          <h2 className="text-[#e6edf3] text-base font-semibold">
+    <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
+      <DialogContent className="sm:max-w-100" showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2.5">
+            <Lock size={16} className="text-primary" />
             {isSet ? 'Encrypt Case File' : 'Encrypted File'}
-          </h2>
-        </div>
+          </DialogTitle>
+          {filename && <div className="text-[10px] font-mono text-muted-foreground/80 truncate">{filename}</div>}
+          <DialogDescription>
+            {isSet
+              ? 'Set a passphrase to encrypt this file. You will need it each time you open it.'
+              : 'This file is encrypted. Enter the passphrase to open it.'}
+          </DialogDescription>
+        </DialogHeader>
 
-        {filename && (
-          <div className="text-[10px] font-mono text-[#6e7681] mb-4 truncate">{filename}</div>
-        )}
-
-        <p className="text-[#8b949e] text-sm mb-5 leading-relaxed">
-          {isSet
-            ? 'Set a passphrase to encrypt this file. You will need it each time you open it.'
-            : 'This file is encrypted. Enter the passphrase to open it.'}
-        </p>
-
-        <div className="space-y-3 mb-6">
+        <div className="space-y-3">
           <div className="relative">
-            <input
+            <Input
               autoFocus
               type={show ? 'text' : 'password'}
               value={pass}
               onChange={(e) => setPass(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
               placeholder={isSet ? 'Passphrase (min 8 chars)' : 'Passphrase'}
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 pr-9 text-[#e6edf3] text-sm placeholder-[#484f58] focus:outline-none focus:border-amber-400/60"
+              className="pr-9"
             />
             <button
               type="button"
               onClick={() => setShow((v) => !v)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#484f58] hover:text-[#8b949e]"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70 hover:text-muted-foreground"
             >
               {show ? <EyeOff size={13} /> : <Eye size={13} />}
             </button>
           </div>
 
           {isSet && (
-            <input
+            <Input
               type={show ? 'text' : 'password'}
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
               placeholder="Confirm passphrase"
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded px-3 py-2 text-[#e6edf3] text-sm placeholder-[#484f58] focus:outline-none focus:border-amber-400/60"
             />
           )}
 
-          {tooShort  && <div className="text-[11px] text-amber-400">Minimum 8 characters</div>}
-          {mismatch  && <div className="text-[11px] text-red-400">Passphrases do not match</div>}
-          {error     && <div className="text-[11px] text-red-400">{error}</div>}
+          {tooShort  && <div className="text-[11px] text-primary">Minimum 8 characters</div>}
+          {mismatch  && <div className="text-[11px] text-destructive">Passphrases do not match</div>}
+          {error     && <div className="text-[11px] text-destructive">{error}</div>}
         </div>
 
-        <div className="flex gap-3 justify-end">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm text-[#8b949e] hover:text-[#e6edf3] transition-colors"
-          >
-            {isSet ? 'Skip encryption' : 'Cancel'}
-          </button>
-          <button
-            onClick={submit}
-            disabled={!canSubmit}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-amber-400 text-[#0d1117] font-semibold rounded hover:bg-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
+        <DialogFooter>
+          <Button variant="ghost" onClick={onCancel}>{isSet ? 'Skip encryption' : 'Cancel'}</Button>
+          <Button onClick={submit} disabled={!canSubmit}>
             <Lock size={12} />
             {isSet ? 'Encrypt & Create' : 'Unlock'}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

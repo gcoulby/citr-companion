@@ -43,6 +43,7 @@ export interface Obligation {
 export interface Investigator {
   name: string;
   trait: string;
+  portrait?: string; // asset id of an uploaded portrait image
   attributes: AttributeState;
   struckAttributes: Attribute[];
   fatigue: number; // 0-5 marked boxes

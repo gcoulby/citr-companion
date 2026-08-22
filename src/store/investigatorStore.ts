@@ -20,6 +20,7 @@ function emptyInvestigator(): Investigator {
 interface InvestigatorStoreState extends Investigator {
   setName: (name: string) => void;
   setTrait: (trait: string) => void;
+  setPortrait: (assetId: string | undefined) => void;
   setAttribute: (attr: Attribute, value: number) => void;
   strikeAttribute: (attr: Attribute, struck: boolean) => void;
   /** Marks `n` fatigue, handling track-full overflow: strikes the highest-value
@@ -45,6 +46,7 @@ export const useInvestigatorStore = create<InvestigatorStoreState>((set) => ({
 
   setName: (name) => set({ name }),
   setTrait: (trait) => set({ trait }),
+  setPortrait: (portrait) => set({ portrait }),
   setAttribute: (attr, value) => set((s) => ({ attributes: { ...s.attributes, [attr]: value } })),
 
   strikeAttribute: (attr, struck) =>

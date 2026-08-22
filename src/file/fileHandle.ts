@@ -5,14 +5,114 @@ export const hasFileSystemAccess = (): boolean =>
 
 const IDB_NAME = 'citr-companion-v1';
 const IDB_STORE = 'handles';
+const IDB_CASES_STORE = 'cases';
+const IDB_BLOBS_STORE = 'caseBlobs';
 
 function openIDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(IDB_NAME, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+    const req = indexedDB.open(IDB_NAME, 3);
+    req.onupgradeneeded = (e) => {
+      if (!req.result.objectStoreNames.contains(IDB_STORE)) req.result.createObjectStore(IDB_STORE);
+      if (e.oldVersion < 2 && !req.result.objectStoreNames.contains(IDB_CASES_STORE)) {
+        req.result.createObjectStore(IDB_CASES_STORE, { keyPath: 'id' });
+      }
+      if (e.oldVersion < 3 && !req.result.objectStoreNames.contains(IDB_BLOBS_STORE)) {
+        req.result.createObjectStore(IDB_BLOBS_STORE);
+      }
+    };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
+}
+
+// ── Recent Case Files list ──────────────────────────────────────────────────
+// Each remembered case is either a FileSystemFileHandle (structured-clone-safe,
+// desktop Chrome/Edge) or a case whose whole .citr blob is stored directly in
+// IndexedDB — the latter is how cases persist on browsers without the File
+// System Access API (Safari, mobile), where the alternative is re-downloading
+// the file on every save. Removing an entry never touches a file on disk, but
+// does delete the IDB-stored blob for 'idb' entries since that *is* the case.
+
+export type CaseStorage = 'handle' | 'idb';
+
+export interface CaseEntry {
+  id: string;
+  title: string;
+  handle: FileSystemFileHandle | null;
+  storage: CaseStorage;
+  created: string;
+  modified: string;
+}
+
+export async function listCases(): Promise<CaseEntry[]> {
+  try {
+    const db = await openIDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_CASES_STORE, 'readonly');
+      const req = tx.objectStore(IDB_CASES_STORE).getAll();
+      req.onsuccess = () => resolve((req.result as CaseEntry[]).sort((a, b) => b.modified.localeCompare(a.modified)));
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function upsertCaseEntry(entry: CaseEntry): Promise<void> {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_CASES_STORE, 'readwrite');
+    tx.objectStore(IDB_CASES_STORE).put(entry);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function removeCaseEntry(id: string): Promise<void> {
+  const db = await openIDB();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(IDB_CASES_STORE, 'readwrite');
+    tx.objectStore(IDB_CASES_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  await deleteCaseBlobFromIDB(id);
+}
+
+// ── IDB-stored case blobs (the whole .citr, for browsers without real files) ─
+
+export async function saveCaseBlobToIDB(id: string, blob: Blob): Promise<void> {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_BLOBS_STORE, 'readwrite');
+    tx.objectStore(IDB_BLOBS_STORE).put(blob, id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getCaseBlobFromIDB(id: string): Promise<Blob | null> {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_BLOBS_STORE, 'readonly');
+    const req = tx.objectStore(IDB_BLOBS_STORE).get(id);
+    req.onsuccess = () => resolve((req.result as Blob) ?? null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deleteCaseBlobFromIDB(id: string): Promise<void> {
+  try {
+    const db = await openIDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_BLOBS_STORE, 'readwrite');
+      tx.objectStore(IDB_BLOBS_STORE).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    // ignore
+  }
 }
 
 export async function saveHandleToIDB(handle: FileSystemFileHandle): Promise<void> {

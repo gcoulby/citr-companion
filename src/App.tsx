@@ -4,18 +4,32 @@ import { useCanvasStore } from './store/canvasStore';
 import { useFileStore } from './store/fileStore';
 import { useInvestigatorStore } from './store/investigatorStore';
 import { useMysteryStore } from './store/mysteryStore';
+import { useApplyTheme } from './hooks/useApplyTheme';
+import { Button } from './components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip';
+import { Separator } from './components/ui/separator';
+import { SidebarProvider } from './components/ui/sidebar';
+import { SettingsDialog } from './components/dialogs/SettingsDialog';
 import {
   openCitrFile,
   createCitrFile,
   writeCitrFile,
   downloadBlob,
   saveHandleToIDB,
-  getHandleFromIDB,
+  saveCaseBlobToIDB,
+  getCaseBlobFromIDB,
+  listCases,
+  upsertCaseEntry,
+  removeCaseEntry,
+  type CaseEntry,
+  type CaseStorage,
 } from './file/fileHandle';
 import { readCitr } from './file/citrReader';
 import { writeCitr } from './file/citrWriter';
 import { isEncryptedBuffer, decryptBlob, encryptBlob } from './lib/crypto';
+import { nanoid } from 'nanoid';
 import { OpenOrCreateDialog } from './components/dialogs/OpenOrCreateDialog';
+import { CaseFilesScreen } from './components/dialogs/CaseFilesScreen';
 import { PasswordDialog } from './components/dialogs/PasswordDialog';
 import { NewNodeDialog } from './components/dialogs/NewNodeDialog';
 import { EdgeDialog } from './components/dialogs/EdgeDialog';
@@ -27,7 +41,7 @@ import { ContextMenu, type ContextMenuItem } from './components/canvas/ContextMe
 import { NodePanel } from './components/panels/NodePanel';
 import { SidebarPanel } from './components/panels/SidebarPanel';
 import { SearchPanel } from './components/panels/SearchPanel';
-import { useAutoSave, setCurrentFileBlob, assetMap } from './hooks/useAutoSave';
+import { useAutoSave, setCurrentFileBlob, getCurrentFileBlob, assetMap } from './hooks/useAutoSave';
 import { useLayout } from './hooks/useLayout';
 import { cacheAsset } from './lib/assetCache';
 import {
@@ -48,6 +62,9 @@ import {
   Archive,
   Lock,
   Dices,
+  Settings,
+  FolderClosed,
+  Download,
 } from 'lucide-react';
 import type { CaseManifest, NodeType } from './types';
 import { PlayPanel } from './components/play/PlayPanel';
@@ -60,19 +77,19 @@ function SaveIndicator() {
   return (
     <div className="flex items-center gap-1.5 text-[11px] font-mono">
       {isEncrypted && (
-        <span title="File is encrypted"><Lock size={11} className="text-amber-400/70" /></span>
+        <span title="File is encrypted"><Lock size={11} className="text-primary/70" /></span>
       )}
       {saveStatus === 'saving' && (
-        <><Loader2 size={12} className="animate-spin text-amber-400" /><span className="text-amber-400">saving…</span></>
+        <><Loader2 size={12} className="animate-spin text-primary" /><span className="text-primary">saving…</span></>
       )}
       {saveStatus === 'saved' && (
-        <><CheckCircle2 size={12} className="text-[#3fb950]" /><span className="text-[#484f58]">saved</span></>
+        <><CheckCircle2 size={12} className="text-emerald-500" /><span className="text-muted-foreground">saved</span></>
       )}
       {saveStatus === 'unsaved' && (
-        <><Clock size={12} className="text-[#8b949e]" /><span className="text-[#484f58]">unsaved</span></>
+        <><Clock size={12} className="text-muted-foreground" /><span className="text-muted-foreground">unsaved</span></>
       )}
       {saveStatus === 'error' && (
-        <><AlertCircle size={12} className="text-red-400" /><span className="text-red-400">error</span></>
+        <><AlertCircle size={12} className="text-destructive" /><span className="text-destructive">error</span></>
       )}
     </div>
   );
@@ -88,48 +105,49 @@ interface ToolbarProps {
   onInfo: () => void;
   onFiles: () => void;
   onPlay: () => void;
+  onSettings: () => void;
+  onCloseCase: () => void;
+  onExport: () => void;
 }
 
-function Toolbar({ onSearch, onDagre, onForce, onFitView, onInfo, onFiles, onPlay }: ToolbarProps) {
-  const manifest = useFileStore((s) => s.manifest);
+function ToolbarButton({ onClick, title, icon, label }: { onClick: () => void; title: string; icon: React.ReactNode; label?: string }) {
   return (
-    <div className="h-10 bg-[#161b22] border-b border-[#30363d] flex items-center px-4 gap-2 shrink-0">
-      <span className="text-[11px] uppercase tracking-wider text-[#484f58] font-mono mr-2">
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size={label ? 'sm' : 'icon-sm'} onClick={onClick} className="text-muted-foreground hover:text-primary">
+          {icon}{label}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{title}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function Toolbar({ onSearch, onDagre, onForce, onFitView, onInfo, onFiles, onPlay, onSettings, onCloseCase, onExport }: ToolbarProps) {
+  const manifest = useFileStore((s) => s.manifest);
+  const storageMode = useFileStore((s) => s.storageMode);
+  return (
+    <div className="h-10 bg-card border-b border-border flex items-center px-4 gap-1.5 shrink-0">
+      <span className="font-display text-[13px] tracking-wide text-foreground mr-2 truncate max-w-60">
         {manifest?.title ?? 'Caught in the Rain'}
       </span>
-      <div className="h-4 w-px bg-[#30363d]" />
-      <button onClick={onDagre} title="Dagre layout"
-        className="flex items-center gap-1.5 px-2 py-1 text-[11px] text-[#8b949e] hover:text-amber-400 transition-colors rounded hover:bg-[#1c2333]">
-        <GitFork size={12} /> Dagre
-      </button>
-      <button onClick={onForce} title="Force layout"
-        className="flex items-center gap-1.5 px-2 py-1 text-[11px] text-[#8b949e] hover:text-amber-400 transition-colors rounded hover:bg-[#1c2333]">
-        <Network size={12} /> Force
-      </button>
-      <button onClick={onFitView} title="Fit view"
-        className="flex items-center gap-1.5 px-2 py-1 text-[11px] text-[#8b949e] hover:text-amber-400 transition-colors rounded hover:bg-[#1c2333]">
-        <Maximize2 size={12} /> Fit
-      </button>
-      <div className="h-4 w-px bg-[#30363d]" />
-      <button onClick={onSearch} title="Search  Ctrl+K"
-        className="flex items-center gap-1.5 px-2 py-1 text-[11px] text-[#8b949e] hover:text-amber-400 transition-colors rounded hover:bg-[#1c2333]">
-        <Search size={12} /> Search
-      </button>
-      <button onClick={onFiles} title="Browse archive"
-        className="flex items-center gap-1.5 px-2 py-1 text-[11px] text-[#8b949e] hover:text-amber-400 transition-colors rounded hover:bg-[#1c2333]">
-        <Archive size={12} /> Files
-      </button>
-      <button onClick={onPlay} title="Play — investigator, mystery, dice &amp; oracles"
-        className="flex items-center gap-1.5 px-2 py-1 text-[11px] text-[#8b949e] hover:text-amber-400 transition-colors rounded hover:bg-[#1c2333]">
-        <Dices size={12} /> Play
-      </button>
+      <Separator orientation="vertical" className="h-4" />
+      <ToolbarButton onClick={onDagre} title="Dagre layout" icon={<GitFork size={12} />} label="Dagre" />
+      <ToolbarButton onClick={onForce} title="Force layout" icon={<Network size={12} />} label="Force" />
+      <ToolbarButton onClick={onFitView} title="Fit view" icon={<Maximize2 size={12} />} label="Fit" />
+      <Separator orientation="vertical" className="h-4" />
+      <ToolbarButton onClick={onSearch} title="Search  Ctrl+K" icon={<Search size={12} />} label="Search" />
+      <ToolbarButton onClick={onFiles} title="Browse archive" icon={<Archive size={12} />} label="Files" />
+      <ToolbarButton onClick={onPlay} title="Play — investigator, mystery, dice & oracles" icon={<Dices size={12} />} label="Play" />
       <div className="flex-1" />
+      {storageMode === 'idb' && (
+        <ToolbarButton onClick={onExport} title="Stored in browser storage — export a .citr file" icon={<Download size={12} />} label="Export" />
+      )}
       <SaveIndicator />
-      <div className="h-4 w-px bg-[#30363d] ml-2" />
-      <button onClick={onInfo} title="About Caught in the Rain"
-        className="p-1 text-[#8b949e] hover:text-amber-400 transition-colors rounded hover:bg-[#1c2333]">
-        <HelpCircle size={14} />
-      </button>
+      <Separator orientation="vertical" className="h-4 ml-2" />
+      <ToolbarButton onClick={onSettings} title="Settings — theme" icon={<Settings size={14} />} />
+      <ToolbarButton onClick={onInfo} title="About Caught in the Rain" icon={<HelpCircle size={14} />} />
+      <ToolbarButton onClick={onCloseCase} title="Close case — return to Case Files" icon={<FolderClosed size={14} />} />
     </div>
   );
 }
@@ -151,6 +169,7 @@ let _pendingEdgeSource: string | null = null;
 // ── Main app ──────────────────────────────────────────────────────────────────
 
 function AppInner() {
+  useApplyTheme();
   const { setHandle, setManifest, setSaveStatus, setLastSaved, setEncryption } = useFileStore();
   const { loadGraph, nodes, addNode, deleteNode } = useGraphStore();
   const { loadCanvas, setPosition } = useCanvasStore();
@@ -160,8 +179,8 @@ function AppInner() {
   const resetMystery = useMysteryStore((s) => s.reset);
 
   const [isOpen, setIsOpen] = useState(false);
-  const [lastFilename, setLastFilename] = useState<string | null>(null);
-  const [lastHandle, setLastHandle] = useState<FileSystemFileHandle | null>(null);
+  const [cases, setCases] = useState<CaseEntry[]>([]);
+  const [createFlow, setCreateFlow] = useState<'choose' | 'create' | null>(null);
 
   // Encrypted-file unlock flow
   const [pendingEncBlob, setPendingEncBlob] = useState<Blob | null>(null);
@@ -178,6 +197,7 @@ function AppInner() {
   const [showInfo, setShowInfo] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
   const [showPlay, setShowPlay] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<NodeType | null>(null);
   const [editorNodeId, setEditorNodeId] = useState<string | null>(null);
@@ -188,12 +208,12 @@ function AppInner() {
 
   const triggerFitView = useCallback(() => setFitViewTrigger((v) => v + 1), []);
 
-  // Check IDB for a previously opened handle on mount
-  useEffect(() => {
-    getHandleFromIDB().then((handle) => {
-      if (handle) { setLastHandle(handle); setLastFilename(handle.name); }
-    }).catch(() => {/* ignore */});
+  const refreshCases = useCallback(() => {
+    listCases().then(setCases).catch(() => {/* ignore */});
   }, []);
+
+  // Load the remembered Case Files list on mount
+  useEffect(() => { refreshCases(); }, [refreshCases]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -204,7 +224,7 @@ function AppInner() {
         e.preventDefault();
         setShowSearch((v) => !v);
       }
-      if (e.key === 'Escape') { setShowSearch(false); setCtxMenu(null); setShowInfo(false); setShowFiles(false); }
+      if (e.key === 'Escape') { setShowSearch(false); setCtxMenu(null); setShowInfo(false); setShowFiles(false); setShowSettings(false); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -225,9 +245,11 @@ function AppInner() {
     filename: string,
   ) => {
     const data = await readCitr(zipBlob);
+    const manifest = data.manifest.id ? data.manifest : { ...data.manifest, id: nanoid() };
+    const storageMode: CaseStorage = handle ? 'handle' : 'idb';
     setCurrentFileBlob(zipBlob);
-    setHandle(handle, filename);
-    setManifest(data.manifest);
+    setHandle(handle, filename, storageMode);
+    setManifest(manifest);
     loadGraph(data.nodes, data.edges);
     loadCanvas(data.positions, data.viewport, data.layout);
     loadInvestigator(data.investigator);
@@ -235,8 +257,18 @@ function AppInner() {
     ingestAssets(data.assets);
     setSaveStatus('saved');
     setIsOpen(true);
+    setCreateFlow(null);
     triggerFitView();
-  }, [setHandle, setManifest, loadGraph, loadCanvas, loadInvestigator, loadMystery, setSaveStatus, ingestAssets, triggerFitView]);
+    if (handle) {
+      await upsertCaseEntry({ id: manifest.id, title: manifest.title, handle, storage: 'handle', created: manifest.created, modified: manifest.modified });
+    } else {
+      // Browsers without File System Access (Safari/mobile) — persist the
+      // whole case in IndexedDB so it doesn't need re-downloading on every save.
+      await saveCaseBlobToIDB(manifest.id, zipBlob);
+      await upsertCaseEntry({ id: manifest.id, title: manifest.title, handle: null, storage: 'idb', created: manifest.created, modified: manifest.modified });
+    }
+    refreshCases();
+  }, [setHandle, setManifest, loadGraph, loadCanvas, loadInvestigator, loadMystery, setSaveStatus, ingestAssets, triggerFitView, refreshCases]);
 
   const loadFromHandle = useCallback(async (handle: FileSystemFileHandle) => {
     const file    = await handle.getFile();
@@ -251,17 +283,34 @@ function AppInner() {
     await loadFromBlob(new Blob([buffer], { type: 'application/zip' }), handle, handle.name);
   }, [loadFromBlob]);
 
-  const handleReopen = useCallback(async () => {
-    if (!lastHandle) return;
+  const handleOpenCase = useCallback(async (entry: CaseEntry) => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const perm = await (lastHandle as any).requestPermission({ mode: 'readwrite' }) as string;
-      if (perm !== 'granted') return;
-      await loadFromHandle(lastHandle);
+      if (entry.storage === 'handle' && entry.handle) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const perm = await (entry.handle as any).requestPermission({ mode: 'readwrite' }) as string;
+        if (perm !== 'granted') return;
+        await loadFromHandle(entry.handle);
+        return;
+      }
+      const blob = await getCaseBlobFromIDB(entry.id);
+      if (!blob) return;
+      const buffer = await blob.arrayBuffer();
+      if (isEncryptedBuffer(buffer)) {
+        setPendingEncBlob(new Blob([buffer]));
+        setPendingEncHandle(null);
+        setPendingEncFilename(entry.title);
+        setPasswordError('');
+        return;
+      }
+      await loadFromBlob(new Blob([buffer], { type: 'application/zip' }), null, entry.title);
     } catch (err) {
-      if (err instanceof Error && err.name !== 'AbortError') console.error('Reopen failed', err);
+      if (err instanceof Error && err.name !== 'AbortError') console.error('Open case failed', err);
     }
-  }, [lastHandle, loadFromHandle]);
+  }, [loadFromHandle, loadFromBlob]);
+
+  const handleRemoveCase = useCallback((id: string) => {
+    removeCaseEntry(id).then(refreshCases).catch(() => {/* ignore */});
+  }, [refreshCases]);
 
   const handleOpen = useCallback(async () => {
     try {
@@ -285,9 +334,10 @@ function AppInner() {
     try {
       const { handle, filename } = await createCitrFile(title);
       const now = new Date().toISOString();
-      const manifest: CaseManifest = { version: 1, title, created: now, modified: now };
+      const manifest: CaseManifest = { id: nanoid(), version: 1, title, created: now, modified: now };
+      const storageMode: CaseStorage = handle ? 'handle' : 'idb';
       setManifest(manifest);
-      setHandle(handle, filename);
+      setHandle(handle, filename, storageMode);
       loadGraph({}, {});
       loadCanvas({}, { x: 0, y: 0, zoom: 1 }, 'freeform');
       resetInvestigator();
@@ -300,16 +350,44 @@ function AppInner() {
       });
       setCurrentFileBlob(blob);
       const diskBlob = passphrase ? await encryptBlob(blob, passphrase) : blob;
-      if (handle) { await writeCitrFile(handle, diskBlob); await saveHandleToIDB(handle); }
-      else downloadBlob(diskBlob, filename);
+      if (handle) {
+        await writeCitrFile(handle, diskBlob);
+        await saveHandleToIDB(handle);
+        await upsertCaseEntry({ id: manifest.id, title: manifest.title, handle, storage: 'handle', created: manifest.created, modified: manifest.modified });
+      } else {
+        // No File System Access (Safari/mobile) — persist to IndexedDB instead
+        // of forcing a download every save.
+        await saveCaseBlobToIDB(manifest.id, diskBlob);
+        await upsertCaseEntry({ id: manifest.id, title: manifest.title, handle: null, storage: 'idb', created: manifest.created, modified: manifest.modified });
+      }
+      refreshCases();
       if (passphrase) setEncryption(true, passphrase);
       setSaveStatus('saved');
       setLastSaved(now);
       setIsOpen(true);
+      setCreateFlow(null);
     } catch (err) {
       if (err instanceof Error && err.name !== 'AbortError') console.error('Create failed', err);
     }
-  }, [setHandle, setManifest, loadGraph, loadCanvas, resetInvestigator, resetMystery, setSaveStatus, setLastSaved, setEncryption]);
+  }, [setHandle, setManifest, loadGraph, loadCanvas, resetInvestigator, resetMystery, setSaveStatus, setLastSaved, setEncryption, refreshCases]);
+
+  const handleCloseCase = useCallback(() => {
+    setIsOpen(false);
+    setSelectedNodeId(null);
+    setShowPlay(false);
+    useFileStore.getState().reset();
+    refreshCases();
+  }, [refreshCases]);
+
+  // Lets IndexedDB-stored cases (Safari/mobile) get a real .citr file out —
+  // for backup, or moving to a desktop browser with File System Access.
+  const handleExport = useCallback(async () => {
+    const blob = getCurrentFileBlob();
+    const { filename, passphrase } = useFileStore.getState();
+    if (!blob || !filename) return;
+    const diskBlob = passphrase ? await encryptBlob(blob, passphrase) : blob;
+    downloadBlob(diskBlob, filename);
+  }, []);
 
   // ── Canvas interactions ────────────────────────────────────────────────────
 
@@ -471,18 +549,29 @@ function AppInner() {
   }
 
   if (!isOpen) {
+    if (cases.length === 0 || createFlow !== null) {
+      return (
+        <OpenOrCreateDialog
+          onOpen={() => void handleOpen()}
+          onCreate={(title, passphrase) => void handleCreate(title, passphrase)}
+          initialMode={createFlow ?? 'choose'}
+          onBack={cases.length > 0 ? () => setCreateFlow(null) : undefined}
+        />
+      );
+    }
     return (
-      <OpenOrCreateDialog
-        onOpen={() => void handleOpen()}
-        onCreate={(title, passphrase) => void handleCreate(title, passphrase)}
-        onReopen={lastHandle ? () => void handleReopen() : undefined}
-        lastFilename={lastFilename}
+      <CaseFilesScreen
+        cases={cases}
+        onOpen={(entry) => void handleOpenCase(entry)}
+        onRemove={handleRemoveCase}
+        onNewCase={() => setCreateFlow('create')}
+        onOpenOther={() => void handleOpen()}
       />
     );
   }
 
   return (
-    <div className="h-screen bg-[#0d1117] flex flex-col overflow-hidden">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       <Toolbar
         onSearch={() => setShowSearch((v) => !v)}
         onDagre={applyDagre}
@@ -491,9 +580,12 @@ function AppInner() {
         onInfo={() => setShowInfo(true)}
         onFiles={() => setShowFiles(true)}
         onPlay={() => setShowPlay((v) => !v)}
+        onSettings={() => setShowSettings(true)}
+        onCloseCase={handleCloseCase}
+        onExport={() => void handleExport()}
       />
 
-      <div className="flex flex-1 overflow-hidden">
+      <SidebarProvider className="flex-1 overflow-hidden min-h-0 w-auto">
         <SidebarPanel
           activeTag={activeTag}
           onTagClick={setActiveTag}
@@ -522,8 +614,8 @@ function AppInner() {
           {Object.keys(nodes).length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="text-center">
-                <div className="text-[#484f58] text-sm">Double-click to add a node</div>
-                <div className="text-[#3a3f47] text-xs mt-1">Right-click for options · drag the pin to connect</div>
+                <div className="text-muted-foreground text-sm">Right-click to add a node</div>
+                <div className="text-muted-foreground/60 text-xs mt-1">Double-click also works · drag the pin to connect</div>
               </div>
             </div>
           )}
@@ -540,7 +632,7 @@ function AppInner() {
         {showPlay && (
           <PlayPanel onClose={() => setShowPlay(false)} />
         )}
-      </div>
+      </SidebarProvider>
 
       {showNewNode && (
         <NewNodeDialog
@@ -566,6 +658,8 @@ function AppInner() {
 
       {showInfo && <InfoPanel onClose={() => setShowInfo(false)} />}
 
+      <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
+
       {showFiles && (
         <FileExplorer
           onClose={() => setShowFiles(false)}
@@ -581,5 +675,9 @@ function AppInner() {
 }
 
 export default function App() {
-  return <AppInner />;
+  return (
+    <TooltipProvider delayDuration={300}>
+      <AppInner />
+    </TooltipProvider>
+  );
 }
