@@ -21,7 +21,7 @@ export function CompactSuggestionMenu<T extends DefaultReactSuggestionItem>({ it
   });
 
   return (
-    <div className="bg-popover text-popover-foreground border border-border rounded-lg shadow-md ring-1 ring-foreground/10 p-1 min-w-56 max-w-72 max-h-80 overflow-y-auto select-none">
+    <div className="bg-popover text-popover-foreground border border-border rounded-lg shadow-md ring-1 ring-foreground/10 p-1 min-w-80 max-w-96 max-h-80 overflow-y-auto select-none">
       {groups.map((g, gi) => (
         <div key={gi}>
           {g.group && (
@@ -49,9 +49,9 @@ export function CompactSuggestionMenu<T extends DefaultReactSuggestionItem>({ it
               {item.icon && (
                 <span className="opacity-70 shrink-0 [&_svg]:w-3.5 [&_svg]:h-3.5">{item.icon}</span>
               )}
-              <span className="truncate">{item.title}</span>
+              <span className="shrink-0 max-w-[40%] truncate">{item.title}</span>
               {item.subtext && (
-                <span className="ml-auto text-[10px] text-muted-foreground/50 truncate">{item.subtext}</span>
+                <span className="ml-auto min-w-0 text-[10px] text-muted-foreground/50 truncate">{item.subtext}</span>
               )}
               {item.badge && (
                 <span className="ml-auto text-[9px] text-muted-foreground/40 font-mono shrink-0">{item.badge}</span>

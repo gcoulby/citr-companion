@@ -2,10 +2,12 @@ import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import type {
   Mystery, MysteryProblem, ClueRank, ClueSet, InvestigationStage, ThreatKind, ThreatEntry, ResolveQuestion,
+  PlayingCard, Suit,
 } from '../game/types';
 import { buildClueDeck, buildTruthDeck, shuffle, drawOne, drawMany } from '../game/deck';
 import {
-  attributeTest, rollConsequences, rollInvestigation,
+  attributeTest, attributeTestFromRoll, rollConsequences, consequenceFromRoll,
+  rollInvestigation, investigationFromRoll, d2FromDice,
   type ConsequenceRollResult, type AttributeTestResult, type InvestigationRollResult,
 } from '../game/dice';
 import { useInvestigatorStore } from './investigatorStore';
@@ -69,17 +71,26 @@ interface MysteryStoreState extends Mystery {
 
   // ── Investigation scene ───────────────────────────────────────────────
   startInvestigationScene: () => InvestigationRollResult;
+  startInvestigationSceneManual: (roll: number) => InvestigationRollResult;
   runAttributeTest: (attribute: Attribute) => (AttributeTestResult & { addedThreatId: string | null });
+  runAttributeTestManual: (attribute: Attribute, a: number, b: number) => (AttributeTestResult & { addedThreatId: string | null });
   advanceStage: () => void;
   applyConsequences: (bonus?: number) => ConsequenceRollResult;
+  applyConsequencesManual: (roll: number, bonus?: number) => ConsequenceRollResult;
   resolveThreatActions: (excludeIds?: string[]) => { threatId: string; roll: ConsequenceRollResult }[];
   actAgainstThreat: (threatId: string, attribute: Attribute) => AttributeTestResult | null;
+  actAgainstThreatManual: (threatId: string, attribute: Attribute, a: number, b: number) => AttributeTestResult | null;
   addThreat: (level: 1 | 2 | 3, kind?: ThreatKind, name?: string) => string;
   renameThreat: (threatId: string, name: string) => void;
   updateThreat: (threatId: string, patch: Partial<Pick<ThreatEntry, 'level' | 'kind'>>) => void;
 
   // ── Clue deck ──────────────────────────────────────────────────────────
   drawClueCard: () => ClueDrawResult;
+  // Draws a specific card the player pulled from a physical deck instead of
+  // popping the app's own digital deck — applies the same rank-matching
+  // rules (establish / strengthen / joker / dead-rank discard) without
+  // touching clueDeck, since the physical deck is the source of truth here.
+  drawClueCardManual: (rank: ClueRank | 'JOKER', suit?: Suit) => ClueDrawResult;
   resolveJoker: (clueSetId: string) => void;
   discardClueCard: () => void;
   setClueDescription: (rank: string, description: string) => void;
@@ -107,7 +118,48 @@ interface MysteryStoreState extends Mystery {
   reset: () => void;
 }
 
-export const useMysteryStore = create<MysteryStoreState>((set, get) => ({
+export const useMysteryStore = create<MysteryStoreState>((set, get) => {
+  // Shared by applyConsequences / applyConsequencesManual so the auto and
+  // physical-dice paths can never drift apart on what each outcome does.
+  function applyConsequenceEffect(roll: ConsequenceRollResult) {
+    set((s) => {
+      switch (roll.outcome) {
+        case 'raiseThreat': {
+          if (s.threats.length === 0) return { danger: s.danger + 1 };
+          const target = s.threats.find((t) => !t.defeated);
+          if (!target) return { danger: s.danger + 1 };
+          return {
+            threats: s.threats.map((t) => (t.id === target.id ? { ...t, level: (Math.min(3, t.level + 1) as 1 | 2 | 3) } : t)),
+          };
+        }
+        case 'discardClue': {
+          const { card, remaining } = drawOne(s.clueDeck);
+          return card ? { clueDeck: remaining, clueDiscard: [...s.clueDiscard, card] } : {};
+        }
+        case 'fatigue1':
+          useInvestigatorStore.getState().gainFatigue(1);
+          return {};
+        case 'fatigue2':
+          useInvestigatorStore.getState().gainFatigue(2);
+          return {};
+        default:
+          return {};
+      }
+    });
+  }
+
+  // Shared by actAgainstThreat / actAgainstThreatManual.
+  function applyThreatActionResult(threatId: string, result: AttributeTestResult) {
+    if (result.outcome === 'failure') return;
+    const marksToAdd = result.outcome === 'success' ? 2 : 1;
+    set((s) => {
+      const threats = s.threats.map((th) => (th.id === threatId ? { ...th, marks: th.marks + marksToAdd } : th));
+      const target = threats.find((th) => th.id === threatId)!;
+      return { threats: threats.map((th) => (th.id === threatId ? { ...th, defeated: target.marks >= target.level } : th)) };
+    });
+  }
+
+  return {
   ...emptyMystery(),
 
   addLog: (text) => set((s) => ({ log: [...s.log, { id: nanoid(), ts: Date.now(), text }].slice(-200) })),
@@ -155,6 +207,17 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => ({
     return result;
   },
 
+  startInvestigationSceneManual: (roll) => {
+    const s = get();
+    const result = investigationFromRoll(roll, s.danger);
+    const stage: InvestigationStage = result.outcome === 'quiet' ? 'discovery' : 'infiltration';
+    let threatIds: string[] = [];
+    if (result.outcome === 'threatLevel1') threatIds = [get().addThreat(1)];
+    else if (result.outcome === 'threatLevel2') threatIds = [get().addThreat(2)];
+    set({ scene: { active: true, stage, threatIds } });
+    return result;
+  },
+
   runAttributeTest: (attribute) => {
     const inv = useInvestigatorStore.getState();
     const s = get();
@@ -168,6 +231,19 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => ({
     // Outcome effects (gain keyword on failure, consequences on cost/failure,
     // bonus clue on success) are applied by the caller so the player can
     // narrate between each mechanical step, per the rulebook's flow.
+    return { ...result, addedThreatId };
+  },
+
+  runAttributeTestManual: (attribute, a, b) => {
+    const inv = useInvestigatorStore.getState();
+    const s = get();
+    const value = inv.attributes[attribute];
+    const result = attributeTestFromRoll(d2FromDice(a, b), value, s.danger);
+    let addedThreatId: string | null = null;
+    if (result.belowDanger) {
+      addedThreatId = get().addThreat(1);
+      set((s2) => ({ danger: Math.ceil(s2.danger / 2) }));
+    }
     return { ...result, addedThreatId };
   },
 
@@ -185,30 +261,13 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => ({
 
   applyConsequences: (bonus = 0) => {
     const roll = rollConsequences(bonus);
-    set((s) => {
-      switch (roll.outcome) {
-        case 'raiseThreat': {
-          if (s.threats.length === 0) return { danger: s.danger + 1 };
-          const target = s.threats.find((t) => !t.defeated);
-          if (!target) return { danger: s.danger + 1 };
-          return {
-            threats: s.threats.map((t) => (t.id === target.id ? { ...t, level: (Math.min(3, t.level + 1) as 1 | 2 | 3) } : t)),
-          };
-        }
-        case 'discardClue': {
-          const { card, remaining } = drawOne(s.clueDeck);
-          return card ? { clueDeck: remaining, clueDiscard: [...s.clueDiscard, card] } : {};
-        }
-        case 'fatigue1':
-          useInvestigatorStore.getState().gainFatigue(1);
-          return {};
-        case 'fatigue2':
-          useInvestigatorStore.getState().gainFatigue(2);
-          return {};
-        default:
-          return {};
-      }
-    });
+    applyConsequenceEffect(roll);
+    return roll;
+  },
+
+  applyConsequencesManual: (rolled, bonus = 0) => {
+    const roll = consequenceFromRoll(rolled, bonus);
+    applyConsequenceEffect(roll);
     return roll;
   },
 
@@ -227,14 +286,16 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => ({
     if (!t) return null;
     const inv = useInvestigatorStore.getState();
     const result = attributeTest(inv.attributes[attribute], get().danger);
-    if (result.outcome !== 'failure') {
-      const marksToAdd = result.outcome === 'success' ? 2 : 1;
-      set((s) => {
-        const threats = s.threats.map((th) => (th.id === threatId ? { ...th, marks: th.marks + marksToAdd } : th));
-        const target = threats.find((th) => th.id === threatId)!;
-        return { threats: threats.map((th) => (th.id === threatId ? { ...th, defeated: target.marks >= target.level } : th)) };
-      });
-    }
+    applyThreatActionResult(threatId, result);
+    return result;
+  },
+
+  actAgainstThreatManual: (threatId, attribute, a, b) => {
+    const t = get().threats.find((x) => x.id === threatId);
+    if (!t) return null;
+    const inv = useInvestigatorStore.getState();
+    const result = attributeTestFromRoll(d2FromDice(a, b), inv.attributes[attribute], get().danger);
+    applyThreatActionResult(threatId, result);
     return result;
   },
 
@@ -296,6 +357,42 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => ({
       break;
     }
     return result;
+  },
+
+  drawClueCardManual: (rank, suit) => {
+    const card: PlayingCard = { id: nanoid(), rank, suit: rank === 'JOKER' ? null : (suit ?? null) };
+    const clueSets = get().clueSets;
+    const discard = get().clueDiscard;
+
+    if (card.rank === 'JOKER') {
+      const candidates = Object.values(clueSets).filter((cs) => cs.status !== 'truth' && cs.status !== 'falseLead');
+      if (candidates.length === 0) {
+        set({ clueDiscard: [...discard, card], danger: get().danger * 2 });
+        return { kind: 'doubleDanger' };
+      }
+      set({ clueDiscard: [...discard, card] });
+      return { kind: 'jokerChoice', candidateClueSetIds: candidates.map((c) => c.id) };
+    }
+
+    const clueRank = card.rank as ClueRank;
+    const existing = clueSets[clueRank];
+
+    if (existing?.status === 'falseLead' || existing?.status === 'truth') {
+      set({ clueDiscard: [...discard, card] });
+      return existing.status === 'falseLead'
+        ? { kind: 'falseLeadDiscard', rank: clueRank }
+        : { kind: 'truthDiscard', rank: clueRank };
+    }
+
+    if (existing) {
+      const updated: ClueSet = { ...existing, cards: [...existing.cards, card], status: 'strengthened' };
+      set({ clueSets: { ...clueSets, [clueRank]: updated } });
+      syncBoardClueNode(updated);
+      return { kind: 'strengthened', rank: clueRank };
+    }
+
+    set({ clueSets: { ...clueSets, [clueRank]: { id: clueRank, rank: clueRank, description: '', cards: [card], status: 'established' } } });
+    return { kind: 'established', rank: clueRank };
   },
 
   resolveJoker: (clueSetId) => {
@@ -414,4 +511,5 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => ({
 
   load: (data) => set({ ...data }),
   reset: () => set(emptyMystery()),
-}));
+  };
+});

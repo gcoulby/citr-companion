@@ -97,10 +97,12 @@ interface ToolbarProps {
   onInfo: () => void
   onFiles: () => void
   onPlay: () => void
+  onBoard: () => void
   onCaseNotes: () => void
   onSettings: () => void
   onCloseCase: () => void
   onExport: () => void
+  notesOpen: boolean
 }
 
 function ToolbarButton({
@@ -108,11 +110,13 @@ function ToolbarButton({
   title,
   icon,
   label,
+  active,
 }: {
   onClick: () => void
   title: string
   icon: React.ReactNode
   label?: string
+  active?: boolean
 }) {
   return (
     <Tooltip>
@@ -121,7 +125,11 @@ function ToolbarButton({
           variant="ghost"
           size={label ? 'sm' : 'icon-sm'}
           onClick={onClick}
-          className="text-muted-foreground hover:text-primary"
+          className={
+            active
+              ? 'text-primary bg-primary/10 hover:bg-primary/15 hover:text-primary'
+              : 'text-muted-foreground hover:text-primary'
+          }
         >
           {icon}
           {label}
@@ -137,10 +145,12 @@ function Toolbar({
   onInfo,
   onFiles,
   onPlay,
+  onBoard,
   onCaseNotes,
   onSettings,
   onCloseCase,
   onExport,
+  notesOpen,
 }: ToolbarProps) {
   const manifest = useFileStore((s) => s.manifest)
   const storageMode = useFileStore((s) => s.storageMode)
@@ -152,25 +162,61 @@ function Toolbar({
         <span className="flex-1 min-w-0 font-display text-[13px] text-foreground truncate tracking-wide">
           {manifest?.title ?? 'Caught in the Rain'}
         </span>
+        <ToolbarButton
+          onClick={onBoard}
+          title="Board"
+          icon={<Layers2 size={16} />}
+          active={!notesOpen}
+        />
+        <ToolbarButton
+          onClick={onCaseNotes}
+          title="Case Notes"
+          icon={<NotebookPen size={16} />}
+          active={notesOpen}
+        />
         <SaveIndicator />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground"
+            >
               <MoreVertical size={16} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuItem onClick={onSearch}><Search size={13} />Search</DropdownMenuItem>
-            <DropdownMenuItem onClick={onFiles}><Archive size={13} />Files</DropdownMenuItem>
-            <DropdownMenuItem onClick={onPlay}><Dices size={13} />Play</DropdownMenuItem>
-            <DropdownMenuItem onClick={onCaseNotes}><NotebookPen size={13} />Case Notes</DropdownMenuItem>
+            <DropdownMenuItem onClick={onSearch}>
+              <Search size={13} />
+              Search
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onFiles}>
+              <Archive size={13} />
+              Files
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onPlay}>
+              <Dices size={13} />
+              Play
+            </DropdownMenuItem>
             {storageMode === 'idb' && (
-              <DropdownMenuItem onClick={onExport}><Download size={13} />Export .citr</DropdownMenuItem>
+              <DropdownMenuItem onClick={onExport}>
+                <Download size={13} />
+                Export .citr
+              </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onSettings}><Settings size={13} />Settings</DropdownMenuItem>
-            <DropdownMenuItem onClick={onInfo}><HelpCircle size={13} />About</DropdownMenuItem>
-            <DropdownMenuItem onClick={onCloseCase}><FolderClosed size={13} />Close Case</DropdownMenuItem>
+            <DropdownMenuItem onClick={onSettings}>
+              <Settings size={13} />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onInfo}>
+              <HelpCircle size={13} />
+              About
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onCloseCase}>
+              <FolderClosed size={13} />
+              Close Case
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -182,6 +228,21 @@ function Toolbar({
       <span className="mr-2 max-w-60 font-display text-[13px] text-foreground truncate tracking-wide">
         {manifest?.title ?? 'Caught in the Rain'}
       </span>
+      <Separator orientation="vertical" className="h-4" />
+      <ToolbarButton
+        onClick={onBoard}
+        title="Board — case graph"
+        icon={<Layers2 size={12} />}
+        label="Board"
+        active={!notesOpen}
+      />
+      <ToolbarButton
+        onClick={onCaseNotes}
+        title="Case Notes — rich session log"
+        icon={<NotebookPen size={12} />}
+        label="Notes"
+        active={notesOpen}
+      />
       <Separator orientation="vertical" className="h-4" />
       <ToolbarButton
         onClick={onSearch}
@@ -200,12 +261,6 @@ function Toolbar({
         title="Play — investigator, mystery, dice & oracles"
         icon={<Dices size={12} />}
         label="Play"
-      />
-      <ToolbarButton
-        onClick={onCaseNotes}
-        title="Case Notes — rich session log"
-        icon={<NotebookPen size={12} />}
-        label="Notes"
       />
       <div className="flex-1" />
       {storageMode === 'idb' && (
@@ -820,89 +875,99 @@ function AppInner() {
 
   return (
     <div className="flex flex-col bg-background h-screen overflow-hidden">
-      {!editorRef && (
-        <Toolbar
-          onSearch={() => setShowSearch((v) => !v)}
-          onInfo={() => setShowInfo(true)}
-          onFiles={() => setShowFiles(true)}
-          onPlay={() => setShowPlay((v) => !v)}
-          onCaseNotes={() => setEditorRef({ kind: 'case' })}
-          onSettings={() => setShowSettings(true)}
-          onCloseCase={handleCloseCase}
-          onExport={() => void handleExport()}
-        />
-      )}
+      <Toolbar
+        onSearch={() => setShowSearch((v) => !v)}
+        onInfo={() => setShowInfo(true)}
+        onFiles={() => setShowFiles(true)}
+        onPlay={() => setShowPlay((v) => !v)}
+        onBoard={() => setEditorRef(null)}
+        onCaseNotes={() =>
+          setEditorRef((r) => (r?.kind === 'case' ? null : { kind: 'case' }))
+        }
+        onSettings={() => setShowSettings(true)}
+        onCloseCase={handleCloseCase}
+        onExport={() => void handleExport()}
+        notesOpen={editorRef !== null}
+      />
 
-      <SidebarProvider className="flex-1 w-auto min-h-0 overflow-hidden">
-        <SidebarPanel
-          activeTag={activeTag}
-          onTagClick={setActiveTag}
-          activeType={activeType}
-          onTypeClick={setActiveType}
-          onFocusNode={handleFocusNode}
-          onAddNode={handleAddNodeFromSidebar}
-          selectedNodeId={selectedNodeId}
-        />
-
-        <div className="relative flex-1 overflow-hidden">
-          <CaseBoard
-            onNodeDoubleClick={handleNodeDoubleClick}
-            onNodeContextMenu={handleNodeContextMenu}
-            onEdgeClick={handleEdgeClick}
-            onCanvasDoubleClick={handleCanvasDoubleClick}
-            onCanvasContextMenu={handleCanvasContextMenu}
-            onDropCreateNode={handleDropCreateNode}
-            activeTag={activeTag}
-            activeType={activeType}
-            focusNodeId={focusNodeId}
-            onFocusConsumed={() => setFocusNodeId(null)}
-            fitViewTrigger={fitViewTrigger}
-            onDagre={applyDagre}
-            onForce={() => void applyForce()}
+      {editorRef ? (
+        <div className="relative flex flex-1 min-h-0 overflow-hidden">
+          <ContentEditor
+            docRef={editorRef}
+            onClose={() => setEditorRef(null)}
           />
-
-          {Object.keys(nodes).length === 0 && (
-            <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
-              <div className="text-center">
-                <div className="text-muted-foreground text-sm">
-                  Tap "Add Node" to get started
-                </div>
-                <div className="mt-1 text-muted-foreground/60 text-xs">
-                  Right-click or double-click the canvas also work · drag the pin to connect
-                </div>
-              </div>
+          {showPlay && (
+            <div className="top-0 right-0 bottom-0 z-60 absolute shadow-2xl">
+              <PlayPanel onClose={() => setShowPlay(false)} />
             </div>
           )}
-
-          {/* Always-visible, works the same on touch and desktop — the
-              right-click/double-click canvas shortcuts still work too. */}
-          <button
-            onClick={handleAddNodeFromSidebar}
-            className="right-4 bottom-4 absolute flex items-center gap-1.5 bg-primary shadow-lg px-3.5 py-2.5 rounded-full font-medium text-primary-foreground text-[13px] hover:brightness-110 transition-all"
-          >
-            <Plus size={15} />
-            Add Node
-          </button>
         </div>
-
-        {selectedNodeId && (
-          <NodePanel
-            nodeId={selectedNodeId}
-            onClose={() => setSelectedNodeId(null)}
-            onOpenDocument={setEditorRef}
+      ) : (
+        <SidebarProvider className="flex-1 w-auto min-h-0 overflow-hidden">
+          <SidebarPanel
+            activeTag={activeTag}
+            onTagClick={setActiveTag}
+            activeType={activeType}
+            onTypeClick={setActiveType}
+            onFocusNode={handleFocusNode}
+            onAddNode={handleAddNodeFromSidebar}
+            selectedNodeId={selectedNodeId}
           />
-        )}
 
-        {showPlay && !editorRef && <PlayPanel onClose={() => setShowPlay(false)} />}
-      </SidebarProvider>
+          <div className="relative flex-1 overflow-hidden">
+            <CaseBoard
+              onNodeDoubleClick={handleNodeDoubleClick}
+              onNodeContextMenu={handleNodeContextMenu}
+              onEdgeClick={handleEdgeClick}
+              onCanvasDoubleClick={handleCanvasDoubleClick}
+              onCanvasContextMenu={handleCanvasContextMenu}
+              onDropCreateNode={handleDropCreateNode}
+              activeTag={activeTag}
+              activeType={activeType}
+              focusNodeId={focusNodeId}
+              onFocusConsumed={() => setFocusNodeId(null)}
+              fitViewTrigger={fitViewTrigger}
+              onDagre={applyDagre}
+              onForce={() => void applyForce()}
+            />
 
-      {/* While Case Notes/a document is open (full-screen), the Play panel
-          floats over it instead of sharing the hidden board row, so it's
-          still reachable. */}
-      {showPlay && editorRef && (
-        <div className="top-0 right-0 bottom-0 z-60 fixed shadow-2xl">
-          <PlayPanel onClose={() => setShowPlay(false)} />
-        </div>
+            {Object.keys(nodes).length === 0 && (
+              <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
+                <div className="text-center">
+                  <div className="text-muted-foreground text-sm">
+                    Tap "Add Node" to get started
+                  </div>
+                  <div className="mt-1 text-muted-foreground/60 text-xs">
+                    Right-click or double-click the canvas also work · drag the
+                    pin to connect
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Always-visible, works the same on touch and desktop — the
+                right-click/double-click canvas shortcuts also work too. */}
+            <div className="right-4 bottom-4 absolute flex items-center gap-2">
+              <button
+                onClick={handleAddNodeFromSidebar}
+                className="flex items-center gap-1.5 bg-primary shadow-lg hover:brightness-110 px-3.5 py-2.5 rounded-full font-medium text-[13px] text-primary-foreground transition-all"
+              >
+                <Plus size={15} />
+                Add Node
+              </button>
+            </div>
+          </div>
+
+          {selectedNodeId && (
+            <NodePanel
+              nodeId={selectedNodeId}
+              onClose={() => setSelectedNodeId(null)}
+              onOpenDocument={setEditorRef}
+            />
+          )}
+
+          {showPlay && <PlayPanel onClose={() => setShowPlay(false)} />}
+        </SidebarProvider>
       )}
 
       {showNewNode && (
@@ -949,15 +1014,6 @@ function AppInner() {
             setShowFiles(false)
             setEditorRef(ref)
           }}
-        />
-      )}
-
-      {editorRef && (
-        <ContentEditor
-          docRef={editorRef}
-          onClose={() => setEditorRef(null)}
-          onOpenSettings={() => setShowSettings(true)}
-          onTogglePlay={() => setShowPlay((v) => !v)}
         />
       )}
     </div>

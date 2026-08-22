@@ -13,22 +13,18 @@ import {
 import '@blocknote/mantine/style.css'
 import './contentEditor.css'
 import {
-  X,
   BookOpen,
-  NotebookPen,
   Loader2,
   ArrowRight,
   CheckCircle2,
   Gauge,
   Dices,
   Search,
-  Settings,
 } from 'lucide-react'
 import { useGraphStore } from '../../store/graphStore'
 import { useBacklinksStore } from '../../store/backlinksStore'
 import { useMysteryStore } from '../../store/mysteryStore'
 import { useFileStore } from '../../store/fileStore'
-import { SaveIndicator } from '../SaveIndicator'
 import {
   contentMap,
   contentDirty,
@@ -183,11 +179,9 @@ function EditorInner({ docId, initialContent }: EditorInnerProps) {
 interface Props {
   docRef: DocumentRef
   onClose: () => void
-  onOpenSettings: () => void
-  onTogglePlay: () => void
 }
 
-export function ContentEditor({ docRef, onClose, onOpenSettings, onTogglePlay }: Props) {
+export function ContentEditor({ docRef, onClose }: Props) {
   const docId = documentRefToId(docRef)
   const node = useGraphStore((s) =>
     docRef.kind === 'node' ? s.nodes[docRef.nodeId] : undefined,
@@ -242,51 +236,22 @@ export function ContentEditor({ docRef, onClose, onOpenSettings, onTogglePlay }:
   }, [onClose])
 
   return (
-    <div className="z-50 fixed inset-0 flex flex-col bg-background">
-      {/* Header */}
-      <div className="flex items-center gap-3 bg-card px-4 border-border border-b h-10 shrink-0">
-        {docRef.kind === 'case' ? (
-          <>
-            <NotebookPen size={14} className="text-primary" />
-            <span className="font-medium text-foreground text-sm truncate">
-              Case Notes
-            </span>
-          </>
-        ) : (
-          <>
-            <BookOpen size={14} className="text-primary" />
-            <span className="font-medium text-foreground text-sm truncate">
-              {node?.label}
-            </span>
-            <span className="font-mono text-[11px] text-muted-foreground/70">
-              · document
-            </span>
-          </>
-        )}
-        <div className="flex-1" />
-        <SaveIndicator />
-        <div className="w-px h-4 bg-border mx-1" />
-        <button
-          onClick={onTogglePlay}
-          title="Play — investigator, mystery, dice & oracles"
-          className="text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Dices size={14} />
-        </button>
-        <button
-          onClick={onOpenSettings}
-          title="Settings — theme"
-          className="text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Settings size={14} />
-        </button>
-        <button
-          onClick={onClose}
-          className="text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <X size={15} />
-        </button>
-      </div>
+    <div className="flex flex-col flex-1 min-h-0 bg-background">
+      {/* Document breadcrumb — only for a per-node document, since the main
+          toolbar's "Notes" button already shows Case Notes is active. No
+          close/settings/play controls here: the main toolbar (always
+          visible now) already has them, so there's a single nav, not two. */}
+      {docRef.kind === 'node' && (
+        <div className="flex items-center gap-2 bg-card px-4 border-border border-b h-8 shrink-0">
+          <BookOpen size={12} className="text-primary" />
+          <span className="font-medium text-foreground text-[12px] truncate">
+            {node?.label}
+          </span>
+          <span className="font-mono text-[10px] text-muted-foreground/70">
+            · document
+          </span>
+        </div>
+      )}
 
       {/* Editor area */}
       {!loaded ? (

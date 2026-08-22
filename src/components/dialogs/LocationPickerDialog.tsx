@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapPin, Search } from 'lucide-react';
@@ -26,7 +26,6 @@ function makePinIcon() {
 type NominatimResult = { lat: string; lon: string; display_name: string };
 
 export function LocationPickerDialog({ initial, onConfirm, onClose }: Props) {
-  const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef    = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
 
@@ -35,57 +34,63 @@ export function LocationPickerDialog({ initial, onConfirm, onClose }: Props) {
   const [searching, setSearching] = useState(false);
   const [searchErr, setSearchErr] = useState('');
 
-  // Initialise Leaflet map once
-  useEffect(() => {
-    if (!mapDivRef.current) return;
+  // A callback ref (not an object ref + useEffect) so the map initialises
+  // the moment the div actually attaches — Radix's Dialog content can
+  // remount its children a couple of times while its open/animation state
+  // settles, which raced a mount-effect approach and left the map div
+  // permanently uninitialised (blank grey box, no tiles).
+  const mapDivRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        markerRef.current = null;
+      }
+      if (!el) return;
 
-    const center: L.LatLngTuple = initial ? [initial.lat, initial.lng] : [20, 0];
-    const zoom = initial ? 14 : 2;
+      const center: L.LatLngTuple = initial ? [initial.lat, initial.lng] : [20, 0];
+      const zoom = initial ? 14 : 2;
+      const map = L.map(el, { center, zoom });
 
-    const map = L.map(mapDivRef.current, { center, zoom });
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      subdomains: ['a', 'b', 'c'],
-    }).addTo(map);
-
-    // Place initial marker
-    if (initial) {
-      markerRef.current = L.marker([initial.lat, initial.lng], {
-        icon: makePinIcon(),
-        draggable: true,
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        subdomains: ['a', 'b', 'c'],
       }).addTo(map);
-      markerRef.current.on('dragend', () => {
-        if (!markerRef.current) return;
-        const { lat, lng } = markerRef.current.getLatLng();
-        setLocation((prev) => ({ ...prev, lat, lng }));
-      });
-    }
 
-    // Click to place / move marker
-    map.on('click', (e: L.LeafletMouseEvent) => {
-      const { lat, lng } = e.latlng;
-      setLocation((prev) => ({ ...(prev ?? {}), lat, lng }));
-      if (markerRef.current) {
-        markerRef.current.setLatLng([lat, lng]);
-      } else {
-        markerRef.current = L.marker([lat, lng], { icon: makePinIcon(), draggable: true }).addTo(map);
+      // Place initial marker
+      if (initial) {
+        markerRef.current = L.marker([initial.lat, initial.lng], {
+          icon: makePinIcon(),
+          draggable: true,
+        }).addTo(map);
         markerRef.current.on('dragend', () => {
           if (!markerRef.current) return;
-          const pos = markerRef.current.getLatLng();
-          setLocation((prev) => ({ ...(prev ?? {}), lat: pos.lat, lng: pos.lng }));
+          const { lat, lng } = markerRef.current.getLatLng();
+          setLocation((prev) => ({ ...prev, lat, lng }));
         });
       }
-    });
 
-    mapRef.current = map;
-    return () => {
-      map.remove();
-      mapRef.current = null;
-      markerRef.current = null;
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      // Click to place / move marker
+      map.on('click', (e: L.LeafletMouseEvent) => {
+        const { lat, lng } = e.latlng;
+        setLocation((prev) => ({ ...(prev ?? {}), lat, lng }));
+        if (markerRef.current) {
+          markerRef.current.setLatLng([lat, lng]);
+        } else {
+          markerRef.current = L.marker([lat, lng], { icon: makePinIcon(), draggable: true }).addTo(map);
+          markerRef.current.on('dragend', () => {
+            if (!markerRef.current) return;
+            const pos = markerRef.current.getLatLng();
+            setLocation((prev) => ({ ...(prev ?? {}), lat: pos.lat, lng: pos.lng }));
+          });
+        }
+      });
+
+      mapRef.current = map;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   const handleSearch = async () => {
     const q = search.trim();

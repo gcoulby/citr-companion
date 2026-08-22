@@ -3,9 +3,12 @@ import { useMysteryStore, type ClueDrawResult } from '../../store/mysteryStore';
 import { useInvestigatorStore } from '../../store/investigatorStore';
 import { useGraphStore } from '../../store/graphStore';
 import { useSettingsStore } from '../../store/settingsStore';
-import { ATTRIBUTES, type Attribute, type ClueStatus, type PlayingCard } from '../../game/types';
+import {
+  ATTRIBUTES, CLUE_RANKS, SUITS,
+  type Attribute, type ClueStatus, type ClueRank, type Suit, type PlayingCard,
+} from '../../game/types';
 import type { AttributeTestResult, InvestigationRollResult, ConsequenceRollResult } from '../../game/dice';
-import { SectionLabel, Badge, SmallButton, TextInput, TextArea } from './ui';
+import { SectionLabel, Badge, SmallButton, TextInput, TextArea, DiceRoller } from './ui';
 import { PlayingCardView } from './PlayingCard';
 import { ClueTable } from './ClueTable';
 import { Pencil, Dices } from 'lucide-react';
@@ -16,6 +19,51 @@ const ATTRIBUTE_LABELS: Record<Attribute, string> = { power: 'Power', insight: '
 const CLUE_STATUS_TONE: Record<ClueStatus, 'default' | 'amber' | 'gold' | 'red'> = {
   established: 'default', strengthened: 'amber', truth: 'gold', falseLead: 'red',
 };
+const SUIT_SYMBOL: Record<Suit, string> = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' };
+
+// A "Draw clue" trigger that also supports physical play: the pencil icon
+// reveals a rank/suit picker so a player who drew from a real deck can tell
+// the app what came up instead of it popping its own digital deck.
+function ClueDrawControl({ onDraw, onManual, disabled }: {
+  onDraw: () => void;
+  onManual: (rank: ClueRank | 'JOKER', suit?: Suit) => void;
+  disabled?: boolean;
+}) {
+  const [manual, setManual] = useState(false);
+  const [rank, setRank] = useState<ClueRank | 'JOKER'>('A');
+  const [suit, setSuit] = useState<Suit>('hearts');
+
+  if (!manual) {
+    return (
+      <div className="inline-flex items-center gap-1">
+        <SmallButton onClick={onDraw} disabled={disabled}>{disabled ? 'Clue drawn' : 'Draw clue'}</SmallButton>
+        {!disabled && (
+          <button onClick={() => setManual(true)} title="Enter a physical card draw" className="text-muted-foreground/50 hover:text-primary transition-colors">
+            <Pencil size={10} />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1">
+      <select value={rank} onChange={(e) => setRank(e.target.value as ClueRank | 'JOKER')}
+        className="h-6 bg-background border border-border rounded text-[11px] text-foreground px-1">
+        {CLUE_RANKS.map((r) => <option key={r} value={r}>{r}</option>)}
+        <option value="JOKER">Joker</option>
+      </select>
+      {rank !== 'JOKER' && (
+        <select value={suit} onChange={(e) => setSuit(e.target.value as Suit)}
+          className="h-6 bg-background border border-border rounded text-[11px] text-foreground px-1">
+          {SUITS.map((s) => <option key={s} value={s}>{SUIT_SYMBOL[s]}</option>)}
+        </select>
+      )}
+      <SmallButton onClick={() => { onManual(rank, rank === 'JOKER' ? undefined : suit); setManual(false); }}>Use</SmallButton>
+      <button onClick={() => setManual(false)} className="text-muted-foreground/50 hover:text-foreground text-[10px] px-0.5">✕</button>
+    </div>
+  );
+}
 
 function RollLabel({ children, onRoll }: { children: React.ReactNode; onRoll: () => void }) {
   return (
@@ -119,6 +167,13 @@ export function MysteryTab() {
   const handleDraw = () => {
     if (clueDrawnForTest) return;
     const result: ClueDrawResult = m.drawClueCard();
+    if (result.kind === 'jokerChoice') setJokerChoice(result.candidateClueSetIds);
+    setClueDrawnForTest(true);
+  };
+
+  const handleDrawManual = (rank: ClueRank | 'JOKER', suit?: Suit) => {
+    if (clueDrawnForTest) return;
+    const result: ClueDrawResult = m.drawClueCardManual(rank, suit);
     if (result.kind === 'jokerChoice') setJokerChoice(result.candidateClueSetIds);
     setClueDrawnForTest(true);
   };
@@ -248,7 +303,12 @@ export function MysteryTab() {
         <div>
           <SectionLabel>Start a scene</SectionLabel>
           <div className="grid grid-cols-2 gap-1.5">
-            <SmallButton onClick={() => { setLastInvestigationRoll(m.startInvestigationScene()); setNewDayNotice(false); setClueDrawnForTest(false); }}>Investigation</SmallButton>
+            <DiceRoller
+              dice={1}
+              label="Investigation"
+              onRoll={() => { setLastInvestigationRoll(m.startInvestigationScene()); setNewDayNotice(false); setClueDrawnForTest(false); }}
+              onManual={([a]) => { setLastInvestigationRoll(m.startInvestigationSceneManual(a)); setNewDayNotice(false); setClueDrawnForTest(false); }}
+            />
             <SmallButton onClick={() => setTruthSceneClue(truthCandidates[0]?.id ?? '')} disabled={truthCandidates.length === 0}>Truth</SmallButton>
             <SmallButton onClick={() => setObligationChoice(inv.obligations.find((o) => !o.struck)?.id ?? '')} disabled={inv.obligations.every((o) => o.struck) || inv.obligations.length === 0}>
               Obligation
@@ -280,7 +340,12 @@ export function MysteryTab() {
                 </button>
               ))}
             </div>
-            <SmallButton onClick={() => { setLastTest(m.runAttributeTest(testAttr)); setClueDrawnForTest(false); }}>Roll test</SmallButton>
+            <DiceRoller
+              dice={2}
+              label="Roll test"
+              onRoll={() => { setLastTest(m.runAttributeTest(testAttr)); setClueDrawnForTest(false); }}
+              onManual={([a, b]) => { setLastTest(m.runAttributeTestManual(testAttr, a, b)); setClueDrawnForTest(false); }}
+            />
             {lastTest && (
               <div className="mt-1.5 text-[11px] space-y-1">
                 <div className="text-foreground font-mono">
@@ -291,12 +356,17 @@ export function MysteryTab() {
                 </div>
                 {lastTest.randomEvent && <div className="text-muted-foreground">Doubles — a random event occurs.</div>}
                 {lastTest.belowDanger && <div className="text-muted-foreground">Below danger — a level 1 threat appears, danger halved.</div>}
-                <div className="flex flex-wrap gap-1.5 mt-1">
+                <div className="flex flex-wrap items-center gap-1.5 mt-1">
                   {lastTest.outcome !== 'success' && (
-                    <SmallButton onClick={() => setLastConsequence(m.applyConsequences(0))}>Suffer consequences</SmallButton>
+                    <DiceRoller
+                      dice={1}
+                      label="Suffer consequences"
+                      onRoll={() => setLastConsequence(m.applyConsequences(0))}
+                      onManual={([a]) => setLastConsequence(m.applyConsequencesManual(a, 0))}
+                    />
                   )}
                   {(lastTest.outcome === 'success' || m.scene.stage === 'acquisition') && (
-                    <SmallButton onClick={handleDraw} disabled={clueDrawnForTest}>{clueDrawnForTest ? 'Clue drawn' : 'Draw clue'}</SmallButton>
+                    <ClueDrawControl onDraw={handleDraw} onManual={handleDrawManual} disabled={clueDrawnForTest} />
                   )}
                   <SmallButton onClick={() => m.advanceStage()}>Advance stage</SmallButton>
                 </div>
@@ -312,10 +382,15 @@ export function MysteryTab() {
               <div className="text-[10px] text-muted-foreground mb-1">Threats</div>
               <div className="space-y-1">
                 {activeThreats.map((t) => (
-                  <div key={t.id} className="flex items-center gap-1.5">
+                  <div key={t.id} className="flex flex-wrap items-center gap-1.5">
                     <span className="flex-1 text-[11px] text-foreground">{t.name}</span>
                     <Badge tone={t.kind === 'rival' ? 'red' : 'default'}>L{t.level} · {t.marks}/{t.level}</Badge>
-                    <SmallButton onClick={() => m.actAgainstThreat(t.id, testAttr)}>Act</SmallButton>
+                    <DiceRoller
+                      dice={2}
+                      label="Act"
+                      onRoll={() => m.actAgainstThreat(t.id, testAttr)}
+                      onManual={([a, b]) => m.actAgainstThreatManual(t.id, testAttr, a, b)}
+                    />
                   </div>
                 ))}
               </div>

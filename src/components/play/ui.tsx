@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { Pencil } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
@@ -40,4 +42,56 @@ export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
 
 export function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <Textarea {...props} className={`resize-none ${props.className ?? ''}`} />;
+}
+
+// A roll trigger that also supports physical play: the pencil icon reveals
+// 1 or 2 d6 inputs so a player who rolled real dice at the table can type
+// in what came up instead of using the app's own RNG — same mechanical
+// outcome either way, since both paths run through the same rule functions.
+export function DiceRoller({ dice, label = 'Roll', onRoll, onManual }: {
+  dice: 1 | 2;
+  label?: string;
+  onRoll: () => void;
+  onManual: (values: number[]) => void;
+}) {
+  const [manual, setManual] = useState(false);
+  const [vals, setVals] = useState<number[]>(dice === 2 ? [1, 1] : [1]);
+
+  if (!manual) {
+    return (
+      <div className="inline-flex items-center gap-1">
+        <SmallButton onClick={onRoll}>{label}</SmallButton>
+        <button
+          onClick={() => setManual(true)}
+          title="Enter a physical dice roll"
+          className="text-muted-foreground/50 hover:text-primary transition-colors"
+        >
+          <Pencil size={10} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1">
+      {vals.map((v, i) => (
+        <input
+          key={i}
+          type="number"
+          min={1}
+          max={6}
+          value={v}
+          onChange={(e) => {
+            const n = Math.max(1, Math.min(6, Math.round(Number(e.target.value)) || 1));
+            setVals((prev) => prev.map((p, pi) => (pi === i ? n : p)));
+          }}
+          className="w-9 h-6 bg-background border border-border rounded text-[11px] text-center text-foreground"
+        />
+      ))}
+      <SmallButton onClick={() => { onManual(vals); setManual(false); }}>Use</SmallButton>
+      <button onClick={() => setManual(false)} className="text-muted-foreground/50 hover:text-foreground text-[10px] px-0.5">
+        ✕
+      </button>
+    </div>
+  );
 }
