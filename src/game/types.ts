@@ -4,6 +4,9 @@
 export type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
 export const SUITS: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
 
+export type Genre = 'noir' | 'fantasy' | 'horror' | 'scifi';
+export const GENRES: Genre[] = ['noir', 'fantasy', 'horror', 'scifi'];
+
 export type ClueRank = 'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10';
 export const CLUE_RANKS: ClueRank[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
 

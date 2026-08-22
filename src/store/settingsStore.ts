@@ -1,10 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { GENRES, type Genre } from '../game/types';
 
-export type Genre = 'noir' | 'fantasy' | 'horror' | 'scifi';
+export type { Genre };
+export { GENRES };
 export type Mode = 'light' | 'dark';
-
-export const GENRES: Genre[] = ['noir', 'fantasy', 'horror', 'scifi'];
 
 export interface Automations {
   autoAdvanceDay: boolean;
@@ -16,10 +16,16 @@ interface SettingsState {
   genre: Genre;
   mode: Mode;
   automations: Automations;
+  /** Opt into IndexedDB (browser) storage for new cases even on browsers that
+   *  support the File System Access API — which otherwise defaults to real
+   *  files. Browsers without file support (Safari/mobile) always use
+   *  IndexedDB regardless of this setting. */
+  preferBrowserStorage: boolean;
   setGenre: (genre: Genre) => void;
   setMode: (mode: Mode) => void;
   toggleMode: () => void;
   setAutomation: <K extends keyof Automations>(key: K, value: Automations[K]) => void;
+  setPreferBrowserStorage: (value: boolean) => void;
 }
 
 // The only sanctioned localStorage use in this app — a display preference,
@@ -30,10 +36,12 @@ export const useSettingsStore = create<SettingsState>()(
       genre: 'noir',
       mode: 'dark',
       automations: DEFAULT_AUTOMATIONS,
+      preferBrowserStorage: false,
       setGenre: (genre) => set({ genre }),
       setMode: (mode) => set({ mode }),
       toggleMode: () => set((s) => ({ mode: s.mode === 'dark' ? 'light' : 'dark' })),
       setAutomation: (key, value) => set((s) => ({ automations: { ...s.automations, [key]: value } })),
+      setPreferBrowserStorage: (preferBrowserStorage) => set({ preferBrowserStorage }),
     }),
     {
       name: 'citr-companion-settings',

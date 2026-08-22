@@ -5,6 +5,7 @@ import { useFileStore } from './store/fileStore';
 import { useInvestigatorStore } from './store/investigatorStore';
 import { useMysteryStore } from './store/mysteryStore';
 import { useApplyTheme } from './hooks/useApplyTheme';
+import { useSettingsStore } from './store/settingsStore';
 import { Button } from './components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip';
 import { Separator } from './components/ui/separator';
@@ -332,7 +333,13 @@ function AppInner() {
 
   const handleCreate = useCallback(async (title: string, passphrase?: string) => {
     try {
-      const { handle, filename } = await createCitrFile(title);
+      // Files are the default; browser storage is only used automatically
+      // where files aren't supported (Safari/mobile), or when explicitly
+      // opted into from Settings on a browser that does support them.
+      const preferBrowserStorage = useSettingsStore.getState().preferBrowserStorage;
+      const { handle, filename } = preferBrowserStorage
+        ? { handle: null, filename: `${title.replace(/[^a-z0-9]/gi, '_')}.citr` }
+        : await createCitrFile(title);
       const now = new Date().toISOString();
       const manifest: CaseManifest = { id: nanoid(), version: 1, title, created: now, modified: now };
       const storageMode: CaseStorage = handle ? 'handle' : 'idb';
