@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
-import { X, Plus, Trash2, Paperclip, FileText, ImagePlus, BookOpen, MapPin, Image } from 'lucide-react';
+import { X, Plus, Trash2, Paperclip, FileText, ImagePlus, BookOpen, MapPin, Image, Link2, NotebookPen } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { useGraphStore } from '../../store/graphStore';
 import { useMysteryStore } from '../../store/mysteryStore';
+import { useBacklinksStore, type BacklinkRef } from '../../store/backlinksStore';
 import { getAllTags } from '../../graph/graphOps';
 import { assetMap } from '../../hooks/useAutoSave';
 import { cacheAsset, getCachedAsset } from '../../lib/assetCache';
@@ -12,14 +13,20 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { PlayingCardView } from '../play/PlayingCard';
-import type { NodeAttachment } from '../../types';
+import type { NodeAttachment, DocumentRef } from '../../types';
+import { CASE_NOTES_ID } from '../../types';
 import type { ThreatKind } from '../../game/types';
 
 interface Props {
   nodeId: string;
   onClose: () => void;
-  onOpenEditor: (nodeId: string) => void;
+  onOpenDocument: (ref: DocumentRef) => void;
 }
+
+// Stable empty-array fallback — a fresh `[]` literal returned from a zustand
+// selector on every call breaks useSyncExternalStore's snapshot caching and
+// causes an infinite render loop.
+const EMPTY_BACKLINKS: BacklinkRef[] = [];
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -27,13 +34,14 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
+export function NodePanel({ nodeId, onClose, onOpenDocument }: Props) {
   const node = useGraphStore((s) => s.nodes[nodeId]);
   const updateNode = useGraphStore((s) => s.updateNode);
   const deleteNode = useGraphStore((s) => s.deleteNode);
   const allNodes = useGraphStore((s) => s.nodes);
   const renameThreat = useMysteryStore((s) => s.renameThreat);
   const updateThreat = useMysteryStore((s) => s.updateThreat);
+  const backlinks = useBacklinksStore((s) => s.index[nodeId] ?? EMPTY_BACKLINKS);
 
   const [newTag, setNewTag] = useState('');
   const [newPropKey, setNewPropKey] = useState('');
@@ -256,7 +264,7 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
           <div>
             <SectionLabel>Document</SectionLabel>
             <button
-              onClick={() => onOpenEditor(nodeId)}
+              onClick={() => onOpenDocument({ kind: 'node', nodeId })}
               className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors group text-left"
             >
               <BookOpen size={14} className={node.hasContent ? 'text-primary' : 'text-muted-foreground/70 group-hover:text-primary'} />
@@ -270,6 +278,29 @@ export function NodePanel({ nodeId, onClose, onOpenEditor }: Props) {
               </div>
             </button>
           </div>
+
+          {/* Referenced in — backlinks from @-mentions in Case Notes / other docs */}
+          {backlinks.length > 0 && (
+            <div>
+              <SectionLabel>Referenced In</SectionLabel>
+              <div className="space-y-1">
+                {backlinks.map(({ docId }) => {
+                  const isCaseNotes = docId === CASE_NOTES_ID;
+                  const sourceLabel = isCaseNotes ? 'Case Notes' : (allNodes[docId]?.label ?? 'Untitled');
+                  return (
+                    <button
+                      key={docId}
+                      onClick={() => onOpenDocument(isCaseNotes ? { kind: 'case' } : { kind: 'node', nodeId: docId })}
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors text-left"
+                    >
+                      {isCaseNotes ? <NotebookPen size={11} className="text-primary shrink-0" /> : <Link2 size={11} className="text-muted-foreground/70 shrink-0" />}
+                      <span className="text-[11px] text-foreground truncate">{sourceLabel}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Location */}
           <div>

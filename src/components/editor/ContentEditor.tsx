@@ -1,69 +1,223 @@
-import { useEffect, useState } from 'react'
-import { useCreateBlockNote } from '@blocknote/react'
+import { useCallback, useEffect, useState, type ReactElement } from 'react'
+import {
+  useCreateBlockNote,
+  SuggestionMenuController,
+  getDefaultReactSlashMenuItems,
+  type DefaultReactSuggestionItem,
+} from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
+import {
+  insertOrUpdateBlockForSlashMenu,
+  filterSuggestionItems,
+} from '@blocknote/core'
 import '@blocknote/mantine/style.css'
-import { X, BookOpen, Loader2 } from 'lucide-react'
+import './contentEditor.css'
+import {
+  X,
+  BookOpen,
+  NotebookPen,
+  Loader2,
+  ArrowRight,
+  CheckCircle2,
+  Gauge,
+  Dices,
+  Search,
+  Settings,
+} from 'lucide-react'
 import { useGraphStore } from '../../store/graphStore'
-import { contentMap, contentDirty, getCurrentFileBlob } from '../../hooks/useAutoSave'
+import { useBacklinksStore } from '../../store/backlinksStore'
+import { useMysteryStore } from '../../store/mysteryStore'
+import { useFileStore } from '../../store/fileStore'
+import { SaveIndicator } from '../SaveIndicator'
+import {
+  contentMap,
+  contentDirty,
+  getCurrentFileBlob,
+} from '../../hooks/useAutoSave'
 import { loadNodeContent } from '../../file/citrReader'
+import { citrSchema } from './blockSchema'
+import { CompactSuggestionMenu } from './CompactSuggestionMenu'
+import { captureSnapshot } from './blocks/snapshotBlock'
+import { NODE_TYPE_CONFIG } from '../../lib/nodeTypeConfig'
+import { CASE_NOTES_ID, documentRefToId, type DocumentRef } from '../../types'
 
 // ── Inner editor — rendered only once content is ready ────────────────────────
 
 interface EditorInnerProps {
-  nodeId: string
+  docId: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initialContent: any[] | undefined
 }
 
-function EditorInner({ nodeId, initialContent }: EditorInnerProps) {
+function EditorInner({ docId, initialContent }: EditorInnerProps) {
   const updateNode = useGraphStore((s) => s.updateNode)
+  const setDocMentions = useBacklinksStore((s) => s.setDocMentions)
+  const bumpContentRevision = useFileStore((s) => s.bumpContentRevision)
   const editor = useCreateBlockNote({
+    schema: citrSchema,
     initialContent: initialContent?.length ? initialContent : undefined,
   })
 
-  // Persist content to contentMap on every change so auto-save can pick it up
+  // Persist content to contentMap on every change, and keep the backlinks
+  // index in sync with any @-mentions the document currently contains.
   useEffect(() => {
     const unsubscribe = editor.onChange(() => {
-      contentMap.set(nodeId, editor.document)
-      contentDirty.add(nodeId)
-      updateNode(nodeId, { hasContent: true })
+      contentMap.set(docId, editor.document)
+      contentDirty.add(docId)
+      if (docId !== CASE_NOTES_ID) updateNode(docId, { hasContent: true })
+      setDocMentions(docId, editor.document)
+      bumpContentRevision()
     })
     return unsubscribe
-  }, [editor, nodeId, updateNode])
+  }, [editor, docId, updateNode, setDocMentions, bumpContentRevision])
 
-  return <BlockNoteView editor={editor} theme="dark" style={{ minHeight: '100%' }} />
+  const getSlashMenuItems = useCallback(
+    async (query: string) => {
+      const citrItems: DefaultReactSuggestionItem[] = [
+        {
+          title: 'Scene',
+          subtext: 'Investigation / Truth / Obligation / Rest heading',
+          group: 'Caught in the Rain',
+          icon: <Search size={14} />,
+          onItemClick: () => {
+            const m = useMysteryStore.getState()
+            insertOrUpdateBlockForSlashMenu(editor, {
+              type: 'scene',
+              props: {
+                sceneType: 'other',
+                stage: '',
+                day: m.day,
+                danger: m.danger,
+              },
+            })
+          },
+        },
+        {
+          title: 'Beat',
+          subtext: 'What the investigator did / what happened',
+          group: 'Caught in the Rain',
+          icon: <ArrowRight size={14} />,
+          onItemClick: () =>
+            insertOrUpdateBlockForSlashMenu(editor, { type: 'beat' }),
+        },
+        {
+          title: 'Resolve',
+          subtext: 'How the scene resolved',
+          group: 'Caught in the Rain',
+          icon: <CheckCircle2 size={14} />,
+          onItemClick: () =>
+            insertOrUpdateBlockForSlashMenu(editor, { type: 'resolve' }),
+        },
+        {
+          title: 'Snapshot',
+          subtext: 'Stamp current day / danger / clock / threats',
+          group: 'Caught in the Rain',
+          icon: <Gauge size={14} />,
+          onItemClick: () =>
+            insertOrUpdateBlockForSlashMenu(editor, {
+              type: 'snapshot',
+              props: { data: JSON.stringify(captureSnapshot()) },
+            }),
+        },
+        {
+          title: 'Roll',
+          subtext: 'Capture a dice or oracle roll',
+          group: 'Caught in the Rain',
+          icon: <Dices size={14} />,
+          onItemClick: () =>
+            insertOrUpdateBlockForSlashMenu(editor, { type: 'roll' }),
+        },
+      ]
+      return filterSuggestionItems(
+        [...citrItems, ...getDefaultReactSlashMenuItems(editor)],
+        query,
+      )
+    },
+    [editor],
+  )
+
+  const getNodeMentionItems = useCallback(
+    async (query: string) => {
+      const nodes = Object.values(useGraphStore.getState().nodes)
+      const items = nodes.map((n) => ({
+        title: n.label || 'Untitled',
+        subtext: n.nodeType ? NODE_TYPE_CONFIG[n.nodeType].label : undefined,
+        icon: n.nodeType
+          ? (NODE_TYPE_CONFIG[n.nodeType].icon as ReactElement)
+          : undefined,
+        onItemClick: () => {
+          editor.insertInlineContent([
+            { type: 'nodeMention', props: { nodeId: n.id } },
+            ' ',
+          ])
+        },
+      }))
+      return filterSuggestionItems(items, query)
+    },
+    [editor],
+  )
+
+  return (
+    <BlockNoteView
+      editor={editor}
+      theme="dark"
+      slashMenu={false}
+      style={{ minHeight: '100%' }}
+    >
+      <SuggestionMenuController
+        triggerCharacter="/"
+        getItems={getSlashMenuItems}
+        suggestionMenuComponent={CompactSuggestionMenu}
+      />
+      <SuggestionMenuController
+        triggerCharacter="@"
+        getItems={getNodeMentionItems}
+        suggestionMenuComponent={CompactSuggestionMenu}
+      />
+    </BlockNoteView>
+  )
 }
 
 // ── Container — handles async content loading ─────────────────────────────────
 
 interface Props {
-  nodeId: string
+  docRef: DocumentRef
   onClose: () => void
+  onOpenSettings: () => void
+  onTogglePlay: () => void
 }
 
-export function ContentEditor({ nodeId, onClose }: Props) {
-  const node = useGraphStore((s) => s.nodes[nodeId])
+export function ContentEditor({ docRef, onClose, onOpenSettings, onTogglePlay }: Props) {
+  const docId = documentRefToId(docRef)
+  const node = useGraphStore((s) =>
+    docRef.kind === 'node' ? s.nodes[docRef.nodeId] : undefined,
+  )
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [initialContent, setInitialContent] = useState<any[] | undefined>(undefined)
+  const [initialContent, setInitialContent] = useState<any[] | undefined>(
+    undefined,
+  )
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
+    setLoaded(false)
+    setInitialContent(undefined)
     // Already in memory (edited this session)?
-    const cached = contentMap.get(nodeId)
+    const cached = contentMap.get(docId)
     if (cached) {
-      setInitialContent(cached as any[])
+      setInitialContent(cached as any[]) // eslint-disable-line @typescript-eslint/no-explicit-any
       setLoaded(true)
       return
     }
     // Stored in the ZIP from a previous session?
-    if (node?.hasContent) {
+    const hasStoredContent = docRef.kind === 'case' || node?.hasContent
+    if (hasStoredContent) {
       const blob = getCurrentFileBlob()
       if (blob) {
-        loadNodeContent(blob, nodeId)
+        loadNodeContent(blob, docId)
           .then((doc) => {
             if (Array.isArray(doc) && doc.length) {
-              contentMap.set(nodeId, doc)
-              setInitialContent(doc as any[])
+              contentMap.set(docId, doc)
+              setInitialContent(doc as any[]) // eslint-disable-line @typescript-eslint/no-explicit-any
             }
           })
           .catch(() => {
@@ -74,12 +228,14 @@ export function ContentEditor({ nodeId, onClose }: Props) {
       }
     }
     setLoaded(true)
-  }, [nodeId]) // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docId])
 
-  // Dismiss on Escape
+  // Dismiss on Escape — but not while a dialog (e.g. Settings, opened from
+  // this editor's own header) is on top of it; let that close first.
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape' && !document.querySelector('[data-slot="dialog-content"]')) onClose()
     }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
@@ -89,11 +245,45 @@ export function ContentEditor({ nodeId, onClose }: Props) {
     <div className="z-50 fixed inset-0 flex flex-col bg-background">
       {/* Header */}
       <div className="flex items-center gap-3 bg-card px-4 border-border border-b h-10 shrink-0">
-        <BookOpen size={14} className="text-primary" />
-        <span className="font-medium text-foreground text-sm truncate">{node?.label}</span>
-        <span className="font-mono text-muted-foreground/70 text-[11px]">· document</span>
+        {docRef.kind === 'case' ? (
+          <>
+            <NotebookPen size={14} className="text-primary" />
+            <span className="font-medium text-foreground text-sm truncate">
+              Case Notes
+            </span>
+          </>
+        ) : (
+          <>
+            <BookOpen size={14} className="text-primary" />
+            <span className="font-medium text-foreground text-sm truncate">
+              {node?.label}
+            </span>
+            <span className="font-mono text-[11px] text-muted-foreground/70">
+              · document
+            </span>
+          </>
+        )}
         <div className="flex-1" />
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+        <SaveIndicator />
+        <div className="w-px h-4 bg-border mx-1" />
+        <button
+          onClick={onTogglePlay}
+          title="Play — investigator, mystery, dice & oracles"
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Dices size={14} />
+        </button>
+        <button
+          onClick={onOpenSettings}
+          title="Settings — theme"
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Settings size={14} />
+        </button>
+        <button
+          onClick={onClose}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
           <X size={15} />
         </button>
       </div>
@@ -107,7 +297,11 @@ export function ContentEditor({ nodeId, onClose }: Props) {
       ) : (
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto px-4 py-10 max-w-3xl">
-            <EditorInner nodeId={nodeId} initialContent={initialContent} />
+            <EditorInner
+              key={docId}
+              docId={docId}
+              initialContent={initialContent}
+            />
           </div>
         </div>
       )}

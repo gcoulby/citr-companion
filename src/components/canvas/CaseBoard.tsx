@@ -5,6 +5,7 @@ import {
   Background,
   BackgroundVariant,
   Controls,
+  ControlButton,
   ConnectionMode,
   useReactFlow,
   type Node,
@@ -16,6 +17,7 @@ import {
   type OnConnectEnd,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { GitFork, Network } from 'lucide-react'
 import { useGraphStore } from '../../store/graphStore'
 import { useCanvasStore } from '../../store/canvasStore'
 import { NodeCard } from './NodeCard'
@@ -39,6 +41,8 @@ interface CaseBoardInnerProps {
   focusNodeId: string | null
   onFocusConsumed: () => void
   fitViewTrigger: number
+  onDagre: () => void
+  onForce: () => void
 }
 
 function CaseBoardInner({
@@ -53,6 +57,8 @@ function CaseBoardInner({
   focusNodeId,
   onFocusConsumed,
   fitViewTrigger,
+  onDagre,
+  onForce,
 }: CaseBoardInnerProps) {
   const { nodes: graphNodes, edges: graphEdges, addEdge: addGraphEdge } = useGraphStore()
   const { positions, setPosition, viewport, setViewport } = useCanvasStore()
@@ -199,7 +205,14 @@ function CaseBoardInner({
       colorMode="dark"
     >
       <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e2430" />
-      <Controls />
+      <Controls>
+        <ControlButton onClick={onDagre} title="Dagre layout">
+          <GitFork />
+        </ControlButton>
+        <ControlButton onClick={onForce} title="Force layout">
+          <Network />
+        </ControlButton>
+      </Controls>
       {/* <MiniMap nodeColor={(node) => (node.selected ? '#fbbf24' : '#ffffff')} maskColor="rgba(13,17,23,0.85)" style={{ background: '#0d1117' }} /> */}
     </ReactFlow>
   )
@@ -217,6 +230,8 @@ interface CaseBoardProps {
   focusNodeId: string | null
   onFocusConsumed: () => void
   fitViewTrigger: number
+  onDagre: () => void
+  onForce: () => void
 }
 
 export function CaseBoard(props: CaseBoardProps) {

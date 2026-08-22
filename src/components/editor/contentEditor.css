@@ -1,0 +1,6 @@
+/* BlockNote's mantine theme paints its own gray editor background —
+   override it so the editor sits flush on the app's own dark background
+   instead of looking like a separate embedded widget. */
+.bn-editor {
+  background: none !important;
+}

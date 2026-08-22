@@ -4,6 +4,18 @@ export type NodeId = string;
 export type EdgeId = string;
 export type AssetId = string;
 
+// Pseudo node-id for the case-wide Case Notes document — reuses the same
+// content/<id>.json storage slot as per-node documents so the writer/reader
+// and contentMap/contentDirty machinery need no changes for it.
+export const CASE_NOTES_ID = '__case_notes__';
+
+// Identifies which BlockNote document is open in the editor overlay.
+export type DocumentRef = { kind: 'node'; nodeId: NodeId } | { kind: 'case' };
+
+export function documentRefToId(ref: DocumentRef): string {
+  return ref.kind === 'case' ? CASE_NOTES_ID : ref.nodeId;
+}
+
 export type NodeType =
   | 'person'
   | 'organization'

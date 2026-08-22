@@ -49,7 +49,10 @@ export function SidebarPanel({
   const clueDeckLeft = useMysteryStore((s) => s.clueDeck.length);
   const truthDeckLeft = useMysteryStore((s) => s.truthDeck.length);
   const allTags = getAllTags(nodes);
-  const [collapsed, setCollapsed] = useState(false);
+  // Starts collapsed to an icon rail on phone-width screens — there isn't
+  // room to permanently dock a 220px list — but a manual toggle afterward
+  // isn't fought (this only reads the width once, on mount).
+  const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768);
 
   const allNodeValues = Object.values(nodes);
 

@@ -94,7 +94,7 @@ export function useAutoSave() {
   const layout = useCanvasStore((s) => s.layout);
   const investigator = useInvestigatorStore();
   const mystery = useMysteryStore();
-  const { handle, filename, manifest, setSaveStatus } = useFileStore();
+  const { handle, filename, manifest, setSaveStatus, contentRevision } = useFileStore();
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFirstRender = useRef(true);
@@ -125,5 +125,5 @@ export function useAutoSave() {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, positions, viewport, layout, investigator, mystery]);
+  }, [nodes, edges, positions, viewport, layout, investigator, mystery, contentRevision]);
 }

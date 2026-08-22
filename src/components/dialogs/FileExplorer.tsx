@@ -6,6 +6,7 @@ import { getCurrentFileBlob, assetMap, contentMap, contentDirty, saveNow } from 
 import { invalidateAsset, getCachedAsset, cacheAsset } from '../../lib/assetCache';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { ScrollArea } from '../ui/scroll-area';
+import { CASE_NOTES_ID, type DocumentRef } from '../../types';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -37,8 +38,8 @@ interface AssetEntry {
 }
 
 interface ContentEntry {
-  nodeId: string;
-  nodeLabel: string;
+  docId: string;
+  nodeLabel: string; // display label — the node's label, or "Case Notes"
   size: number;
 }
 
@@ -120,7 +121,7 @@ function ContentRow({
   onOpen,
 }: {
   entry: ContentEntry;
-  onOpen: (nodeId: string) => void;
+  onOpen: (docId: string) => void;
 }) {
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border/30 group">
@@ -130,7 +131,7 @@ function ContentRow({
         <div className="text-[9px] text-muted-foreground/70 font-mono mt-0.5">{fmtBytes(entry.size)}</div>
       </div>
       <button
-        onClick={() => onOpen(entry.nodeId)}
+        onClick={() => onOpen(entry.docId)}
         className="opacity-0 group-hover:opacity-100 transition flex items-center gap-1 px-2 py-0.5 rounded text-[10px] text-primary hover:bg-primary/10"
       >
         Open
@@ -143,10 +144,10 @@ function ContentRow({
 
 interface Props {
   onClose: () => void;
-  onOpenEditor: (nodeId: string) => void;
+  onOpenDocument: (ref: DocumentRef) => void;
 }
 
-export function FileExplorer({ onClose, onOpenEditor }: Props) {
+export function FileExplorer({ onClose, onOpenDocument }: Props) {
   const nodes = useGraphStore((s) => s.nodes);
   const updateNode = useGraphStore((s) => s.updateNode);
 
@@ -208,9 +209,9 @@ export function FileExplorer({ onClose, onOpenEditor }: Props) {
               referencedBy: thumbnailIndex[assetId] ?? [],
             });
           } else if (path.startsWith('content/')) {
-            const nodeId = path.replace('content/', '').replace('.json', '');
-            const nodeLabel = nodes[nodeId]?.label ?? nodeId;
-            content.push({ nodeId, nodeLabel, size });
+            const docId = path.replace('content/', '').replace('.json', '');
+            const nodeLabel = docId === CASE_NOTES_ID ? 'Case Notes' : (nodes[docId]?.label ?? docId);
+            content.push({ docId, nodeLabel, size });
           }
         }
 
@@ -252,9 +253,9 @@ export function FileExplorer({ onClose, onOpenEditor }: Props) {
     void saveNow();
   };
 
-  const handleOpenContent = (nodeId: string) => {
+  const handleOpenContent = (docId: string) => {
     onClose();
-    onOpenEditor(nodeId);
+    onOpenDocument(docId === CASE_NOTES_ID ? { kind: 'case' } : { kind: 'node', nodeId: docId });
   };
 
   return (
@@ -298,7 +299,7 @@ export function FileExplorer({ onClose, onOpenEditor }: Props) {
               <div className="px-4 py-3 text-[11px] text-muted-foreground/40">No documents created yet</div>
             ) : (
               contentEntries.map((e) => (
-                <ContentRow key={e.nodeId} entry={e} onOpen={handleOpenContent} />
+                <ContentRow key={e.docId} entry={e} onOpen={handleOpenContent} />
               ))
             )}
 

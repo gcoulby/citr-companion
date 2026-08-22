@@ -84,5 +84,9 @@ export async function writeCitr(opts: WriteOptions): Promise<Blob> {
     }
   }
 
-  return zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  // mimeType: without this, JSZip defaults the blob to 'application/zip',
+  // which some mobile browsers (iOS Safari in particular) use to rename/
+  // retype a downloaded .citr file as .zip regardless of the `download`
+  // attribute's filename.
+  return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: 'application/octet-stream' });
 }

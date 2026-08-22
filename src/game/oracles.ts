@@ -19,11 +19,14 @@ export interface OracleRollResult {
 
 // A d66 roll (tens/units both 1-6) maps directly onto a 36-entry table
 // ordered 11,12,...,16,21,...,66 via index = (tens-1)*6 + (units-1).
-export function rollOracleTable(table: OracleTable): OracleRollResult {
-  const roll = rollD66();
+export function oracleResultFromRoll(table: OracleTable, roll: D66Roll): OracleRollResult {
   const index = (roll.tens - 1) * 6 + (roll.units - 1);
   const result = table.entries[index] ?? '—';
   return { roll, result };
+}
+
+export function rollOracleTable(table: OracleTable): OracleRollResult {
+  return oracleResultFromRoll(table, rollD66());
 }
 
 // ── Subject oracles (p.57) — open questions / random events ─────────────────
