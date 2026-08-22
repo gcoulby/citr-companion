@@ -1,8 +1,10 @@
-import { Moon, Sun, Check, Clock4 } from 'lucide-react';
+import { Moon, Sun, Check, Clock4, Database } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
+import { ScrollArea } from '../ui/scroll-area';
 import { Switch } from '../ui/switch';
 import { Label } from '../ui/label';
 import { useSettingsStore, GENRES, type Genre } from '../../store/settingsStore';
+import { hasFileSystemAccess } from '../../file/fileHandle';
 
 const GENRE_LABEL: Record<Genre, string> = {
   noir: 'Noir',
@@ -30,16 +32,19 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
   const toggleMode = useSettingsStore((s) => s.toggleMode);
   const autoAdvanceDay = useSettingsStore((s) => s.automations.autoAdvanceDay);
   const setAutomation = useSettingsStore((s) => s.setAutomation);
+  const preferBrowserStorage = useSettingsStore((s) => s.preferBrowserStorage);
+  const setPreferBrowserStorage = useSettingsStore((s) => s.setPreferBrowserStorage);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85dvh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>Theme preferences, stored on this device only.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <ScrollArea className="flex-1 min-h-0 max-h-[60dvh] -mx-1 px-1">
+        <div className="space-y-4 pb-1">
           <div>
             <Label className="mb-2 block text-xs uppercase tracking-wider text-muted-foreground font-mono">Genre</Label>
             <div className="grid grid-cols-2 gap-2">
@@ -87,7 +92,24 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
               <Switch checked={autoAdvanceDay} onCheckedChange={(v) => setAutomation('autoAdvanceDay', v)} />
             </div>
           </div>
+
+          {hasFileSystemAccess() && (
+            <div>
+              <Label className="mb-2 block text-xs uppercase tracking-wider text-muted-foreground font-mono">Storage</Label>
+              <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <Database size={14} className="text-muted-foreground" />
+                  <div>
+                    <Label className="text-sm">Use browser storage for new cases</Label>
+                    <div className="text-[11px] text-muted-foreground">Default is a real .citr file on disk — this keeps new cases in this browser instead</div>
+                  </div>
+                </div>
+                <Switch checked={preferBrowserStorage} onCheckedChange={setPreferBrowserStorage} />
+              </div>
+            </div>
+          )}
         </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

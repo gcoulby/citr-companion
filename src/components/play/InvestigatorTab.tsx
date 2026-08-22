@@ -1,16 +1,32 @@
 import { useRef, useState } from 'react';
 import { nanoid } from 'nanoid';
-import { Plus, Trash2, X, ImagePlus } from 'lucide-react';
+import { Plus, Trash2, X, ImagePlus, Dices } from 'lucide-react';
 import { useInvestigatorStore } from '../../store/investigatorStore';
+import { useSettingsStore } from '../../store/settingsStore';
 import { ATTRIBUTES, type Attribute } from '../../game/types';
 import { assetMap } from '../../hooks/useAutoSave';
 import { cacheAsset, getCachedAsset } from '../../lib/assetCache';
+import { rollOracleTable, FIRST_NAME_TABLE, LAST_NAME_TABLE, TRAIT_TABLE } from '../../game/oracles';
+import { GENRE_TABLES } from '../../game/genreTables';
 import { SectionLabel, Badge, SmallButton, TextInput } from './ui';
 
 const ATTRIBUTE_LABELS: Record<Attribute, string> = { power: 'Power', insight: 'Insight', method: 'Method' };
 
+function RollLabel({ children, onRoll }: { children: React.ReactNode; onRoll: () => void }) {
+  return (
+    <div className="flex items-center justify-between mb-1.5">
+      <SectionLabel>{children}</SectionLabel>
+      <button onClick={onRoll} title="Roll for inspiration" className="text-muted-foreground/60 hover:text-primary transition-colors -mt-1.5">
+        <Dices size={12} />
+      </button>
+    </div>
+  );
+}
+
 export function InvestigatorTab() {
   const inv = useInvestigatorStore();
+  const genre = useSettingsStore((s) => s.genre);
+  const genreTables = GENRE_TABLES[genre];
   const [newObligation, setNewObligation] = useState('');
   const [newKeyword, setNewKeyword] = useState('');
   const [newKeywordSignature, setNewKeywordSignature] = useState(false);
@@ -59,12 +75,12 @@ export function InvestigatorTab() {
       </div>
 
       <div>
-        <SectionLabel>Name</SectionLabel>
+        <RollLabel onRoll={() => inv.setName(`${rollOracleTable(FIRST_NAME_TABLE).result} ${rollOracleTable(LAST_NAME_TABLE).result}`)}>Name</RollLabel>
         <TextInput value={inv.name} onChange={(e) => inv.setName(e.target.value)} placeholder="Investigator name…" />
       </div>
 
       <div>
-        <SectionLabel>Trait</SectionLabel>
+        <RollLabel onRoll={() => inv.setTrait(rollOracleTable(TRAIT_TABLE).result)}>Trait</RollLabel>
         <TextInput value={inv.trait} onChange={(e) => inv.setTrait(e.target.value)} placeholder="e.g. coldly pragmatic…" />
       </div>
 
@@ -120,7 +136,7 @@ export function InvestigatorTab() {
       </div>
 
       <div>
-        <SectionLabel>Obligations</SectionLabel>
+        <RollLabel onRoll={() => setNewObligation(rollOracleTable(genreTables.obligations).result)}>Obligations</RollLabel>
         <div className="space-y-1 mb-2">
           {inv.obligations.map((o) => (
             <div key={o.id} className="flex items-center gap-2 px-2 py-1.5 rounded bg-background border border-border group">
@@ -149,7 +165,7 @@ export function InvestigatorTab() {
       </div>
 
       <div>
-        <SectionLabel>Keywords</SectionLabel>
+        <RollLabel onRoll={() => setNewKeyword(rollOracleTable(genreTables.keywords).result)}>Keywords</RollLabel>
         <div className="space-y-1 mb-2">
           {inv.keywords.map((k) => (
             <div key={k.id} className="flex items-center gap-2 px-2 py-1.5 rounded bg-background border border-border group">

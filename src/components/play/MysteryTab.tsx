@@ -8,15 +8,30 @@ import type { AttributeTestResult, InvestigationRollResult, ConsequenceRollResul
 import { SectionLabel, Badge, SmallButton, TextInput, TextArea } from './ui';
 import { PlayingCardView } from './PlayingCard';
 import { ClueTable } from './ClueTable';
-import { Pencil } from 'lucide-react';
+import { Pencil, Dices } from 'lucide-react';
+import { rollOracleTable, MOTIVATION_TABLE, TREACHERY_TABLE } from '../../game/oracles';
+import { GENRE_TABLES } from '../../game/genreTables';
 
 const ATTRIBUTE_LABELS: Record<Attribute, string> = { power: 'Power', insight: 'Insight', method: 'Method' };
 const CLUE_STATUS_TONE: Record<ClueStatus, 'default' | 'amber' | 'gold' | 'red'> = {
   established: 'default', strengthened: 'amber', truth: 'gold', falseLead: 'red',
 };
 
+function RollLabel({ children, onRoll }: { children: React.ReactNode; onRoll: () => void }) {
+  return (
+    <div className="flex items-center justify-between mb-1.5">
+      <SectionLabel>{children}</SectionLabel>
+      <button onClick={onRoll} title="Roll for inspiration" className="text-muted-foreground/60 hover:text-primary transition-colors -mt-1.5">
+        <Dices size={12} />
+      </button>
+    </div>
+  );
+}
+
 function CreateMysteryForm() {
   const createMystery = useMysteryStore((s) => s.createMystery);
+  const genre = useSettingsStore((s) => s.genre);
+  const genreTables = GENRE_TABLES[genre];
   const [location, setLocation] = useState('');
   const [object, setObject] = useState('');
   const [treachery, setTreachery] = useState('');
@@ -31,19 +46,19 @@ function CreateMysteryForm() {
         <span className="text-foreground">[object]</span> <span className="text-foreground">[treachery]</span>."
       </div>
       <div>
-        <SectionLabel>Location</SectionLabel>
+        <RollLabel onRoll={() => setLocation(rollOracleTable(genreTables.locations).result)}>Location</RollLabel>
         <TextInput value={location} onChange={(e) => setLocation(e.target.value)} placeholder="the lighthouse…" />
       </div>
       <div>
-        <SectionLabel>Object</SectionLabel>
+        <RollLabel onRoll={() => setObject(rollOracleTable(genreTables.objects).result)}>Object</RollLabel>
         <TextInput value={object} onChange={(e) => setObject(e.target.value)} placeholder="family…" />
       </div>
       <div>
-        <SectionLabel>Treachery</SectionLabel>
+        <RollLabel onRoll={() => setTreachery(rollOracleTable(TREACHERY_TABLE).result)}>Treachery</RollLabel>
         <TextInput value={treachery} onChange={(e) => setTreachery(e.target.value)} placeholder="transformed…" />
       </div>
       <div>
-        <SectionLabel>Motivation</SectionLabel>
+        <RollLabel onRoll={() => setMotivation(rollOracleTable(MOTIVATION_TABLE).result)}>Motivation</RollLabel>
         <TextArea rows={2} value={motivation} onChange={(e) => setMotivation(e.target.value)} placeholder="Why does your investigator need the truth?" />
       </div>
       <button
@@ -77,6 +92,8 @@ export function MysteryTab() {
   const inv = useInvestigatorStore();
   const addNode = useGraphStore((s) => s.addNode);
   const addEdge = useGraphStore((s) => s.addEdge);
+  const genre = useSettingsStore((s) => s.genre);
+  const genreTables = GENRE_TABLES[genre];
 
   const [testAttr, setTestAttr] = useState<Attribute>('insight');
   const [lastTest, setLastTest] = useState<(AttributeTestResult & { addedThreatId: string | null }) | null>(null);
@@ -158,19 +175,19 @@ export function MysteryTab() {
         {editingProblem ? (
           <div className="space-y-2 p-2.5 rounded border border-border bg-background">
             <div>
-              <SectionLabel>Location</SectionLabel>
+              <RollLabel onRoll={() => m.updateProblem({ location: rollOracleTable(genreTables.locations).result })}>Location</RollLabel>
               <TextInput value={m.problem.location} onChange={(e) => m.updateProblem({ location: e.target.value })} />
             </div>
             <div>
-              <SectionLabel>Object</SectionLabel>
+              <RollLabel onRoll={() => m.updateProblem({ object: rollOracleTable(genreTables.objects).result })}>Object</RollLabel>
               <TextInput value={m.problem.object} onChange={(e) => m.updateProblem({ object: e.target.value })} />
             </div>
             <div>
-              <SectionLabel>Treachery</SectionLabel>
+              <RollLabel onRoll={() => m.updateProblem({ treachery: rollOracleTable(TREACHERY_TABLE).result })}>Treachery</RollLabel>
               <TextInput value={m.problem.treachery} onChange={(e) => m.updateProblem({ treachery: e.target.value })} />
             </div>
             <div>
-              <SectionLabel>Motivation</SectionLabel>
+              <RollLabel onRoll={() => m.setMotivation(rollOracleTable(MOTIVATION_TABLE).result)}>Motivation</RollLabel>
               <TextArea rows={2} value={m.motivation} onChange={(e) => m.setMotivation(e.target.value)} />
             </div>
             <SmallButton onClick={() => setEditingProblem(false)}>Done</SmallButton>
@@ -376,7 +393,17 @@ export function MysteryTab() {
                   <div className="flex items-center gap-1.5 mb-1">
                     <span className="text-[11px] font-mono text-foreground">Clue {cs.rank}</span>
                     <Badge tone={CLUE_STATUS_TONE[cs.status]}>{cs.status}</Badge>
-                    <span className="text-[9px] text-muted-foreground/70 ml-auto">{cs.cards.length} card{cs.cards.length === 1 ? '' : 's'}</span>
+                    <span className="text-[9px] text-muted-foreground/70">{cs.cards.length} card{cs.cards.length === 1 ? '' : 's'}</span>
+                    <button
+                      onClick={() => {
+                        const word = rollOracleTable(genreTables.clues).result;
+                        m.setClueDescription(cs.rank, cs.description ? `${cs.description} — ${word}` : word);
+                      }}
+                      title="Roll a clue word for inspiration"
+                      className="ml-auto text-muted-foreground/60 hover:text-primary transition-colors"
+                    >
+                      <Dices size={11} />
+                    </button>
                   </div>
                   <TextArea rows={2} value={cs.description} placeholder="What is this clue?"
                     onChange={(e) => m.setClueDescription(cs.rank, e.target.value)}
@@ -416,6 +443,13 @@ export function MysteryTab() {
                     {t.name}
                   </button>
                 )}
+                <button
+                  onClick={() => m.renameThreat(t.id, rollOracleTable(genreTables.threats).result)}
+                  title="Roll a threat name for inspiration"
+                  className="text-muted-foreground/60 hover:text-primary transition-colors"
+                >
+                  <Dices size={11} />
+                </button>
                 <Badge tone={t.defeated ? 'default' : t.kind === 'rival' ? 'red' : 'default'}>L{t.level}</Badge>
                 <SmallButton onClick={() => handleAddThreatToBoard(t.id)}>Add to board</SmallButton>
               </div>
