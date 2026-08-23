@@ -15,4 +15,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  worker: {
+    // pdfWorkerEntry.ts (the pdfjs worker, see src/components/pdf/) uses a
+    // top-level `await import(...)` so it can re-export a binding pdfjs's
+    // own fake-worker fallback needs — top-level await isn't supported in
+    // Vite's default 'iife' worker output. pdfjs already requests a module
+    // worker itself (`new Worker(url, { type: 'module' })`), so this just
+    // matches what it was already asking for.
+    format: 'es',
+  },
 })

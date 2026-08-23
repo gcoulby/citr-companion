@@ -72,6 +72,94 @@
         showFatalError('UNHANDLED REJECTION', reason ? reason.stack || reason.message || String(reason) : 'Unknown rejection')
       })
     </script>
+    <script>
+      // pdfjs-dist (PDF View) unconditionally calls a batch of very recent
+      // (2024-2025) JS built-ins with zero feature detection upstream —
+      // `Promise.try`/`Promise.withResolvers`, `Uint8Array.prototype.
+      // toBase64`/`Uint8Array.fromBase64`, `Map.prototype.
+      // getOrInsertComputed` (used 15+ times just in pdf.mjs — this is core
+      // to how pdfjs caches things internally, not an edge case), and
+      // `RegExp.escape` (search/highlight text normalization). On any
+      // older-WebKit device (iPads especially — they lag iPhones on OS
+      // updates) these throw immediately. Small, targeted, correctness-
+      // focused polyfills — not a general "modernize old browsers" shim —
+      // added here (a plain script, not a module) so they're guaranteed to
+      // run before pdfjs's code, whether it's loaded via a static or a
+      // lazy/dynamic import. Covers pdf.mjs and pdf_viewer.mjs (both run on
+      // the main thread); pdfWorkerEntry.ts carries the same polyfills for
+      // the subset pdf.worker.mjs (a separate JS realm) actually calls.
+      if (typeof Promise.try !== 'function') {
+        Promise.try = function (fn) {
+          var args = Array.prototype.slice.call(arguments, 1)
+          return new Promise(function (resolve) {
+            resolve(fn.apply(undefined, args))
+          })
+        }
+      }
+      if (typeof Promise.withResolvers !== 'function') {
+        Promise.withResolvers = function () {
+          var resolve, reject
+          var promise = new Promise(function (res, rej) {
+            resolve = res
+            reject = rej
+          })
+          return { promise: promise, resolve: resolve, reject: reject }
+        }
+      }
+      if (typeof Uint8Array.prototype.toBase64 !== 'function') {
+        Uint8Array.prototype.toBase64 = function () {
+          var binary = ''
+          var chunkSize = 0x8000 // avoid call-stack overflow from spreading a huge array into String.fromCharCode
+          for (var i = 0; i < this.length; i += chunkSize) {
+            binary += String.fromCharCode.apply(null, this.subarray(i, i + chunkSize))
+          }
+          return btoa(binary)
+        }
+      }
+      if (typeof Uint8Array.fromBase64 !== 'function') {
+        Uint8Array.fromBase64 = function (base64) {
+          var binary = atob(base64)
+          var bytes = new Uint8Array(binary.length)
+          for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+          return bytes
+        }
+      }
+      ;[Map, WeakMap].forEach(function (Ctor) {
+        if (typeof Ctor.prototype.getOrInsertComputed !== 'function') {
+          Ctor.prototype.getOrInsertComputed = function (key, callback) {
+            if (this.has(key)) return this.get(key)
+            var value = callback(key)
+            this.set(key, value)
+            return value
+          }
+        }
+      })
+      if (typeof RegExp.escape !== 'function') {
+        RegExp.escape = function (str) {
+          return String(str).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')
+        }
+      }
+      // `for await (const chunk of readableStream)` — pdfjs's getTextContent()
+      // (the fuzzy-search tab's page-text indexing) iterates a native
+      // ReadableStream this way. Async iteration support on ReadableStream
+      // is itself a fairly recent Streams-spec addition — polyfilled via the
+      // always-available `.getReader()`/`.read()` primitives, which every
+      // engine with ReadableStream at all has had for years.
+      if (typeof ReadableStream.prototype[Symbol.asyncIterator] !== 'function') {
+        ReadableStream.prototype[Symbol.asyncIterator] = function () {
+          var reader = this.getReader()
+          return {
+            next: function () {
+              return reader.read()
+            },
+            return: function (value) {
+              reader.releaseLock()
+              return Promise.resolve({ value: value, done: true })
+            },
+          }
+        }
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -91,7 +91,7 @@ import {
 import { SaveIndicator } from './components/SaveIndicator'
 import type { CaseManifest, NodeType, DocumentRef } from './types'
 import { PlayPanel } from './components/play/PlayPanel'
-import { useIsMobile } from './hooks/use-mobile'
+import { useIsMobile, useIsMobileOrTabletDevice } from './hooks/use-mobile'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -365,6 +365,11 @@ function AppInner() {
   const resetInvestigator = useInvestigatorStore((s) => s.reset)
   const loadMystery = useMysteryStore((s) => s.load)
   const resetMystery = useMysteryStore((s) => s.reset)
+  // Broader than a screen-width check on purpose: an iPad is 768px+ wide even
+  // in portrait, so a plain useIsMobile() never flags it — but it's exactly
+  // the touch-first, unreliable-WebKit device class the PDF View gate below
+  // exists for. See useIsMobileOrTabletDevice's comment for the iPad UA trick.
+  const isMobile = useIsMobileOrTabletDevice()
 
   const [isOpen, setIsOpen] = useState(false)
   const [cases, setCases] = useState<CaseEntry[]>([])
@@ -1010,15 +1015,33 @@ function AppInner() {
         </div>
       ) : showPdfView ? (
         <div className="relative flex flex-1 min-h-0 overflow-hidden">
-          <Suspense
-            fallback={
-              <div className="flex justify-center items-center w-full h-full text-muted-foreground text-sm">
-                Loading PDF View…
-              </div>
-            }
-          >
-            <PdfView />
-          </Suspense>
+          {isMobile ? (
+            // Deliberately not rendering <PdfView/> at all here (not even
+            // inside a hidden/collapsed state) — pdfjs-dist is slow, prone
+            // to crashing, and generally unreliable on mobile hardware/
+            // browsers. Skipping the render entirely means React never
+            // calls the lazy() loader, so the whole pdfjs-dist chunk is
+            // never fetched on mobile, not just deferred.
+            <div className="flex flex-col justify-center items-center gap-2 px-8 w-full h-full text-muted-foreground text-center">
+              <FileStack size={24} className="text-muted-foreground/50" />
+              <span className="max-w-xs text-[13px]">
+                PDF View isn't available on mobile — performance was slow and unreliable enough on phones/tablets that it's not worth the trade-off.
+              </span>
+              <span className="max-w-xs text-muted-foreground/70 text-[12px]">
+                Use your device's own PDF viewer (Files, browser) for PDFs stored in this case.
+              </span>
+            </div>
+          ) : (
+            <Suspense
+              fallback={
+                <div className="flex justify-center items-center w-full h-full text-muted-foreground text-sm">
+                  Loading PDF View…
+                </div>
+              }
+            >
+              <PdfView />
+            </Suspense>
+          )}
           {showPlay && (
             <div className="top-0 right-0 bottom-0 z-60 absolute shadow-2xl">
               <PlayPanel
