@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { rollD6, roll2d6, rollD66, rollYesNo, type YesNoOutcome } from '../../game/dice';
+import {
+  rollD6, roll2d6, rollD66, rollYesNo, yesNoFromRoll,
+  d2FromDice, d66FromDice, type YesNoOutcome,
+} from '../../game/dice';
 import {
   rollSubjectOracle, rollOracleTable, rollFullName,
   FIRST_NAME_TABLE, LAST_NAME_TABLE, TRAIT_TABLE, MOTIVATION_TABLE, TREACHERY_TABLE,
@@ -7,7 +10,7 @@ import {
 } from '../../game/oracles';
 import { GENRE_TABLES } from '../../game/genreTables';
 import { useSettingsStore } from '../../store/settingsStore';
-import { SectionLabel, SmallButton } from './ui';
+import { SectionLabel, SmallButton, DiceRoller } from './ui';
 
 const YES_NO_LABEL: Record<YesNoOutcome, string> = {
   extremeNo: 'Extreme No', no: 'No', yes: 'Yes', extremeYes: 'Extreme Yes',
@@ -47,27 +50,30 @@ export function DiceTab() {
     <div className="p-4 space-y-5">
       <div>
         <SectionLabel>Raw dice</SectionLabel>
-        <div className="grid grid-cols-3 gap-2">
-          <button onClick={() => setD6(rollD6())} className="flex flex-col items-center gap-1 py-3 rounded border border-border hover:border-primary/40 transition-colors">
-            <span className="text-[10px] text-muted-foreground">d6</span>
-            <span className="text-xl font-mono text-foreground">{d6 ?? '–'}</span>
-          </button>
-          <button onClick={() => setD2(roll2d6())} className="flex flex-col items-center gap-1 py-3 rounded border border-border hover:border-primary/40 transition-colors">
-            <span className="text-[10px] text-muted-foreground">2d6</span>
-            <span className="text-xl font-mono text-foreground">{d2 ? d2.sum : '–'}</span>
-            {d2 && <span className="text-[9px] text-muted-foreground/70">{d2.a}+{d2.b}{d2.doubles ? ' · doubles!' : ''}</span>}
-          </button>
-          <button onClick={() => setD66(rollD66().value)} className="flex flex-col items-center gap-1 py-3 rounded border border-border hover:border-primary/40 transition-colors">
-            <span className="text-[10px] text-muted-foreground">d66</span>
-            <span className="text-xl font-mono text-foreground">{d66 ?? '–'}</span>
-          </button>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <DiceRoller dice={1} label="d6" onRoll={() => setD6(rollD6())} onManual={([a]) => setD6(a)} />
+            {d6 !== null && <span className="text-[12px] text-foreground font-mono">{d6}</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            <DiceRoller dice={2} label="2d6" onRoll={() => setD2(roll2d6())} onManual={([a, b]) => setD2(d2FromDice(a, b))} />
+            {d2 && (
+              <span className="text-[12px] text-foreground font-mono">
+                {d2.sum} <span className="text-[10px] text-muted-foreground/70">({d2.a}+{d2.b}{d2.doubles ? ' · doubles!' : ''})</span>
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <DiceRoller dice={2} label="d66" onRoll={() => setD66(rollD66().value)} onManual={([a, b]) => setD66(d66FromDice(a, b).value)} />
+            {d66 !== null && <span className="text-[12px] text-foreground font-mono">{d66}</span>}
+          </div>
         </div>
       </div>
 
       <div>
         <SectionLabel>Yes / No oracle</SectionLabel>
         <div className="flex items-center gap-2">
-          <SmallButton onClick={() => setYesNo(rollYesNo())}>Roll</SmallButton>
+          <DiceRoller dice={1} onRoll={() => setYesNo(rollYesNo())} onManual={([a]) => setYesNo(yesNoFromRoll(a))} />
           {yesNo && (
             <span className="text-[12px] text-foreground font-mono">
               {YES_NO_LABEL[yesNo.outcome]} <span className="text-muted-foreground/70">(rolled {yesNo.roll})</span>

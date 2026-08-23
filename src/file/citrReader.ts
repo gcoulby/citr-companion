@@ -1,20 +1,10 @@
 import JSZip from 'jszip';
 import type { GraphNode, GraphEdge, NodeId, EdgeId, CaseManifest, CaseSettings } from '../types';
-import { DEFAULT_CASE_SETTINGS } from '../types';
+import { DEFAULT_CASE_SETTINGS, CASE_NOTES_ID } from '../types';
 import type { Investigator, Mystery } from '../game/types';
 import { deobfuscate } from '../lib/obfuscate';
-
-function mimeFromExt(ext: string): string {
-  switch (ext.toLowerCase()) {
-    case 'png':  return 'image/png';
-    case 'jpg':
-    case 'jpeg': return 'image/jpeg';
-    case 'gif':  return 'image/gif';
-    case 'webp': return 'image/webp';
-    case 'pdf':  return 'application/pdf';
-    default:     return 'application/octet-stream';
-  }
-}
+import { extractMentionedNodeIds } from '../lib/backlinks';
+import { mimeFromExt } from '../lib/mime';
 
 export interface LoadedAsset {
   buffer: ArrayBuffer;
@@ -67,6 +57,10 @@ export interface CitrData {
   settings: CaseSettings;
   investigator: Investigator;
   mystery: Mystery;
+  // nodeId -> ids of documents (node docs or CASE_NOTES_ID) that @-mention it,
+  // seeded eagerly from every content/*.json blob so backlinks are correct
+  // even for documents not opened this session.
+  backlinks: Record<NodeId, string[]>;
 }
 
 export async function readCitr(file: File | Blob): Promise<CitrData> {
@@ -114,9 +108,11 @@ export async function readCitr(file: File | Blob): Promise<CitrData> {
     })
   );
 
-  // settings.json is a reserved slot for future app-level preferences; nothing
-  // to merge in yet.
-  const settings: CaseSettings = { ...DEFAULT_CASE_SETTINGS };
+  const settingsRaw = await zip.file('settings.json')?.async('string');
+  const settings: CaseSettings = {
+    ...DEFAULT_CASE_SETTINGS,
+    ...(settingsRaw ? (JSON.parse(settingsRaw) as Partial<CaseSettings>) : {}),
+  };
 
   const investigatorRaw = await zip.file('investigator.json')?.async('string');
   const investigator: Investigator = investigatorRaw
@@ -139,7 +135,25 @@ export async function readCitr(file: File | Blob): Promise<CitrData> {
     }
   }
 
-  return { manifest, nodes, edges, positions, viewport, layout, assets, settings, investigator, mystery };
+  // Eager backlinks scan — cheap (JSON parse only, no editor instantiation)
+  const backlinks: Record<NodeId, string[]> = {};
+  const contentDocIds = [CASE_NOTES_ID, ...Object.values(nodes).filter((n) => n.hasContent).map((n) => n.id)];
+  await Promise.all(
+    contentDocIds.map(async (docId) => {
+      const raw = await zip.file(`content/${docId}.json`)?.async('string');
+      if (!raw) return;
+      try {
+        const blocks = JSON.parse(raw) as unknown;
+        for (const mentionedId of extractMentionedNodeIds(blocks)) {
+          backlinks[mentionedId] = [...(backlinks[mentionedId] ?? []), docId];
+        }
+      } catch {
+        // corrupt content blob — skip, ContentEditor will surface it on open
+      }
+    })
+  );
+
+  return { manifest, nodes, edges, positions, viewport, layout, assets, settings, investigator, mystery, backlinks };
 }
 
 export async function loadNodeContent(file: File | Blob, nodeId: NodeId): Promise<unknown> {

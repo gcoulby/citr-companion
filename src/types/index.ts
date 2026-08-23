@@ -4,6 +4,18 @@ export type NodeId = string;
 export type EdgeId = string;
 export type AssetId = string;
 
+// Pseudo node-id for the case-wide Case Notes document — reuses the same
+// content/<id>.json storage slot as per-node documents so the writer/reader
+// and contentMap/contentDirty machinery need no changes for it.
+export const CASE_NOTES_ID = '__case_notes__';
+
+// Identifies which BlockNote document is open in the editor overlay.
+export type DocumentRef = { kind: 'node'; nodeId: NodeId } | { kind: 'case' };
+
+export function documentRefToId(ref: DocumentRef): string {
+  return ref.kind === 'case' ? CASE_NOTES_ID : ref.nodeId;
+}
+
 export type NodeType =
   | 'person'
   | 'organization'
@@ -27,6 +39,11 @@ export interface NodeLocation {
   lat: number;
   lng: number;
   label?: string;
+  /** Adjusts the node-card/panel mini-map preview's zoom relative to its
+   *  automatic default (whole-image-fit for a custom map image, or a
+   *  standard street-level zoom for real tile maps). Doesn't affect the
+   *  interactive location picker, which always starts at the same default. */
+  zoomOffset?: number;
 }
 
 // Metadata carried by `clue`/`truth`/`threat` typed nodes, mirroring the
@@ -35,7 +52,17 @@ export interface NodeLocation {
 export interface ClueNodeMeta {
   rank: string; // 'A'-'10'
   status: 'established' | 'strengthened' | 'truth' | 'falseLead';
-  card?: PlayingCard; // the literal card drawn that established this clue set
+  cards?: PlayingCard[]; // every literal card drawn into this clue set, oldest first
+}
+
+// Reads a clue's cards, tolerating cases saved before `cards` replaced the
+// older single `card` field — so nodes created before that change still
+// show their card instead of going blank.
+export function clueCardsOf(clue: ClueNodeMeta | undefined): PlayingCard[] {
+  if (!clue) return [];
+  if (clue.cards) return clue.cards;
+  const legacyCard = (clue as ClueNodeMeta & { card?: PlayingCard }).card;
+  return legacyCard ? [legacyCard] : [];
 }
 
 export interface TruthNodeMeta {
@@ -104,9 +131,16 @@ export interface CaseManifest {
   modified: string;
 }
 
-// Reserved for future app-level preferences (e.g. a default genre for
-// oracle tables). Empty for now — kept so the file format has a stable slot.
-export type CaseSettings = Record<string, never>;
+// Per-case settings, stored in settings.json inside the .citr file (unlike
+// the device-level display prefs in settingsStore, which live in localStorage).
+export interface CaseSettings {
+  /** Asset id (under assets/) of the custom single-image map, when the map
+   *  style is set to 'image'. Its own natural pixel size, needed to size the
+   *  Leaflet image overlay and to convert node pin coordinates to percentages. */
+  mapImageAssetId?: string;
+  mapImageWidth?: number;
+  mapImageHeight?: number;
+}
 
 export const DEFAULT_CASE_SETTINGS: CaseSettings = {};
 

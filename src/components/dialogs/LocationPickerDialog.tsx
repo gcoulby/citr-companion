@@ -1,16 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import { MapPin, Search } from 'lucide-react';
-import type { NodeLocation } from '../../types';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
+import { useCallback, useRef, useState } from 'react'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+import { MapPin, Search } from 'lucide-react'
+import type { NodeLocation } from '../../types'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { resolveMapSource } from '../../lib/locationUtils'
+import { useSettingsStore } from '../../store/settingsStore'
+import { useCaseSettingsStore } from '../../store/caseSettingsStore'
+import { getCachedAsset } from '../../lib/assetCache'
 
 interface Props {
-  initial?: NodeLocation;
-  onConfirm: (loc: NodeLocation) => void;
-  onClose: () => void;
+  initial?: NodeLocation
+  onConfirm: (loc: NodeLocation) => void
+  onClose: () => void
+}
+
+function clampToBounds(latlng: L.LatLng, bounds: L.LatLngBounds): L.LatLng {
+  return L.latLng(
+    Math.min(Math.max(latlng.lat, bounds.getSouth()), bounds.getNorth()),
+    Math.min(Math.max(latlng.lng, bounds.getWest()), bounds.getEast()),
+  )
 }
 
 // Custom round pin icon — avoids default-marker asset-resolution issues in Vite
@@ -20,182 +31,341 @@ function makePinIcon() {
     iconSize: [14, 14],
     iconAnchor: [7, 7],
     className: '',
-  });
+  })
 }
 
-type NominatimResult = { lat: string; lon: string; display_name: string };
+type NominatimResult = { lat: string; lon: string; display_name: string }
 
 export function LocationPickerDialog({ initial, onConfirm, onClose }: Props) {
-  const mapDivRef = useRef<HTMLDivElement>(null);
-  const mapRef    = useRef<L.Map | null>(null);
-  const markerRef = useRef<L.Marker | null>(null);
+  const mapRef = useRef<L.Map | null>(null)
+  const markerRef = useRef<L.Marker | null>(null)
 
-  const [location, setLocation] = useState<NodeLocation | null>(initial ?? null);
-  const [search, setSearch]     = useState('');
-  const [searching, setSearching] = useState(false);
-  const [searchErr, setSearchErr] = useState('');
+  const [location, setLocation] = useState<NodeLocation | null>(initial ?? null)
+  const [search, setSearch] = useState('')
+  const [searching, setSearching] = useState(false)
+  const [searchErr, setSearchErr] = useState('')
 
-  // Initialise Leaflet map once
-  useEffect(() => {
-    if (!mapDivRef.current) return;
+  const mapStyle = useSettingsStore((s) => s.mapStyle)
+  const customMapUrl = useSettingsStore((s) => s.customMapUrl)
+  const mapImageAssetId = useCaseSettingsStore(
+    (s) => s.settings.mapImageAssetId,
+  )
+  const mapImageWidth = useCaseSettingsStore((s) => s.settings.mapImageWidth)
+  const mapImageHeight = useCaseSettingsStore((s) => s.settings.mapImageHeight)
+  const mapImageUrl = mapImageAssetId
+    ? getCachedAsset(mapImageAssetId)
+    : undefined
+  const mapSource = resolveMapSource(
+    mapStyle,
+    customMapUrl,
+    mapImageUrl && mapImageWidth && mapImageHeight
+      ? { url: mapImageUrl, width: mapImageWidth, height: mapImageHeight }
+      : null,
+  )
 
-    const center: L.LatLngTuple = initial ? [initial.lat, initial.lng] : [20, 0];
-    const zoom = initial ? 14 : 2;
-
-    const map = L.map(mapDivRef.current, { center, zoom });
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      subdomains: ['a', 'b', 'c'],
-    }).addTo(map);
-
-    // Place initial marker
-    if (initial) {
-      markerRef.current = L.marker([initial.lat, initial.lng], {
-        icon: makePinIcon(),
-        draggable: true,
-      }).addTo(map);
-      markerRef.current.on('dragend', () => {
-        if (!markerRef.current) return;
-        const { lat, lng } = markerRef.current.getLatLng();
-        setLocation((prev) => ({ ...prev, lat, lng }));
-      });
-    }
-
-    // Click to place / move marker
-    map.on('click', (e: L.LeafletMouseEvent) => {
-      const { lat, lng } = e.latlng;
-      setLocation((prev) => ({ ...(prev ?? {}), lat, lng }));
-      if (markerRef.current) {
-        markerRef.current.setLatLng([lat, lng]);
-      } else {
-        markerRef.current = L.marker([lat, lng], { icon: makePinIcon(), draggable: true }).addTo(map);
-        markerRef.current.on('dragend', () => {
-          if (!markerRef.current) return;
-          const pos = markerRef.current.getLatLng();
-          setLocation((prev) => ({ ...(prev ?? {}), lat: pos.lat, lng: pos.lng }));
-        });
+  // A callback ref (not an object ref + useEffect) so the map initialises
+  // the moment the div actually attaches — Radix's Dialog content can
+  // remount its children a couple of times while its open/animation state
+  // settles, which raced a mount-effect approach and left the map div
+  // permanently uninitialised (blank grey box, no tiles).
+  const mapDivRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      if (mapRef.current) {
+        mapRef.current.remove()
+        mapRef.current = null
+        markerRef.current = null
       }
-    });
+      if (!el) return
 
-    mapRef.current = map;
-    return () => {
-      map.remove();
-      mapRef.current = null;
-      markerRef.current = null;
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      const { mapStyle, customMapUrl } = useSettingsStore.getState()
+      const { mapImageAssetId, mapImageWidth, mapImageHeight } =
+        useCaseSettingsStore.getState().settings
+      const mapImageUrl = mapImageAssetId
+        ? getCachedAsset(mapImageAssetId)
+        : undefined
+      const source = resolveMapSource(
+        mapStyle,
+        customMapUrl,
+        mapImageUrl && mapImageWidth && mapImageHeight
+          ? { url: mapImageUrl, width: mapImageWidth, height: mapImageHeight }
+          : null,
+      )
+      if (!source) return // 'image' style with no image uploaded yet — nothing to render
+
+      let map: L.Map
+      // Leaflet's own attribution control bakes a Ukrainian-flag emoji into
+      // its default "Leaflet" branding link, independent of whatever tile
+      // provider is in use — the earlier switch away from OSM's tile server
+      // didn't touch this, since it comes from Leaflet itself, not the tiles.
+      const attributionPrefix =
+        '<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>'
+      // For an image map, clicks/drags must stay within the image's own
+      // pixel bounds — there's nothing meaningful outside it, unlike a real
+      // tile map where any lat/lng is technically valid.
+      const imageBounds =
+        source.kind === 'image'
+          ? L.latLngBounds([0, 0], [source.height, source.width])
+          : null
+      const clampIfImage = (latlng: L.LatLng) =>
+        imageBounds ? clampToBounds(latlng, imageBounds) : latlng
+
+      if (source.kind === 'image') {
+        // CRS.Simple treats the image as a flat pixel grid instead of a
+        // real-world projection — markers use [y, x] pixel coordinates.
+        map = L.map(el, {
+          crs: L.CRS.Simple,
+          center: [0, 0],
+          zoom: 0,
+          maxBoundsViscosity: 1,
+          // Leaflet's default minZoom is 0 — without this, getBoundsZoom()
+          // below silently clamps its result up to 0 whenever the true
+          // "whole image fits" zoom is negative, which is the normal case
+          // for any image bigger than the map container.
+          minZoom: -10,
+          maxZoom: 10,
+        })
+        L.imageOverlay(source.url, imageBounds!).addTo(map)
+        map.setMaxBounds(imageBounds!)
+        // The container may not have its final size yet the instant this
+        // ref fires — Radix's dialog is still mid mount/zoom-in transition —
+        // so measuring bounds-to-zoom immediately can catch a stale/tiny
+        // size and produce a wrong (too-zoomed-in, cropped) fit. Deferring
+        // one frame lets layout settle first.
+        requestAnimationFrame(() => {
+          if (mapRef.current !== map) return // dialog already closed/remounted
+          map.invalidateSize()
+          const minZoom = map.getBoundsZoom(imageBounds!)
+          map.setMinZoom(minZoom - 2)
+          map.setMaxZoom(minZoom + 4)
+          map.fitBounds(imageBounds!)
+        })
+      } else {
+        const center: L.LatLngTuple = initial
+          ? [initial.lat, initial.lng]
+          : [20, 0]
+        const zoom = initial ? 14 : 2
+        map = L.map(el, { center, zoom })
+        L.tileLayer(source.urlTemplate, {
+          attribution: source.attribution,
+          subdomains: source.subdomains,
+          detectRetina: true,
+        }).addTo(map)
+      }
+      map.attributionControl.setPrefix(attributionPrefix)
+
+      // Place initial marker
+      if (initial) {
+        const startLatLng = clampIfImage(L.latLng(initial.lat, initial.lng))
+        markerRef.current = L.marker(startLatLng, {
+          icon: makePinIcon(),
+          draggable: true,
+        }).addTo(map)
+        markerRef.current.on('dragend', () => {
+          if (!markerRef.current) return
+          const { lat, lng } = clampIfImage(markerRef.current.getLatLng())
+          markerRef.current.setLatLng([lat, lng])
+          setLocation((prev) => ({ ...prev, lat, lng }))
+        })
+      }
+
+      // Click to place / move marker
+      map.on('click', (e: L.LeafletMouseEvent) => {
+        const { lat, lng } = clampIfImage(e.latlng)
+        setLocation((prev) => ({ ...(prev ?? {}), lat, lng }))
+        if (markerRef.current) {
+          markerRef.current.setLatLng([lat, lng])
+        } else {
+          markerRef.current = L.marker([lat, lng], {
+            icon: makePinIcon(),
+            draggable: true,
+          }).addTo(map)
+          markerRef.current.on('dragend', () => {
+            if (!markerRef.current) return
+            const pos = clampIfImage(markerRef.current.getLatLng())
+            markerRef.current.setLatLng(pos)
+            setLocation((prev) => ({
+              ...(prev ?? {}),
+              lat: pos.lat,
+              lng: pos.lng,
+            }))
+          })
+        }
+      })
+
+      mapRef.current = map
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
 
   const handleSearch = async () => {
-    const q = search.trim();
-    if (!q) return;
-    setSearching(true);
-    setSearchErr('');
+    const q = search.trim()
+    if (!q) return
+    setSearching(true)
+    setSearchErr('')
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`,
         { headers: { 'Accept-Language': 'en' } },
-      );
-      const results = (await res.json()) as NominatimResult[];
-      if (!results.length) { setSearchErr('No results'); return; }
-      const { lat, lon, display_name } = results[0];
-      const newLoc: NodeLocation = { lat: parseFloat(lat), lng: parseFloat(lon), label: display_name };
-      setLocation(newLoc);
+      )
+      const results = (await res.json()) as NominatimResult[]
+      if (!results.length) {
+        setSearchErr('No results')
+        return
+      }
+      const { lat, lon, display_name } = results[0]
+      const newLoc: NodeLocation = {
+        lat: parseFloat(lat),
+        lng: parseFloat(lon),
+        label: display_name,
+      }
+      setLocation(newLoc)
       if (mapRef.current) {
-        mapRef.current.setView([newLoc.lat, newLoc.lng], 14);
+        mapRef.current.setView([newLoc.lat, newLoc.lng], 14)
         if (markerRef.current) {
-          markerRef.current.setLatLng([newLoc.lat, newLoc.lng]);
+          markerRef.current.setLatLng([newLoc.lat, newLoc.lng])
         } else {
           markerRef.current = L.marker([newLoc.lat, newLoc.lng], {
-            icon: makePinIcon(), draggable: true,
-          }).addTo(mapRef.current);
+            icon: makePinIcon(),
+            draggable: true,
+          }).addTo(mapRef.current)
           markerRef.current.on('dragend', () => {
-            if (!markerRef.current) return;
-            const pos = markerRef.current.getLatLng();
-            setLocation((prev) => ({ ...(prev ?? {}), lat: pos.lat, lng: pos.lng }));
-          });
+            if (!markerRef.current) return
+            const pos = markerRef.current.getLatLng()
+            setLocation((prev) => ({
+              ...(prev ?? {}),
+              lat: pos.lat,
+              lng: pos.lng,
+            }))
+          })
         }
       }
     } catch {
-      setSearchErr('Search failed — check network');
+      setSearchErr('Search failed — check network')
     } finally {
-      setSearching(false);
+      setSearching(false)
     }
-  };
+  }
 
   const clearLocation = () => {
-    setLocation(null);
+    setLocation(null)
     if (markerRef.current) {
-      markerRef.current.remove();
-      markerRef.current = null;
+      markerRef.current.remove()
+      markerRef.current = null
     }
-  };
+  }
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-170 h-135 flex flex-col p-0 gap-0 overflow-hidden" showCloseButton={false}>
-        <DialogHeader className="px-4 py-3 border-b border-border">
-          <DialogTitle className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground font-mono font-normal">
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <DialogContent
+        className="flex flex-col gap-0 p-0 sm:max-w-170 h-135 overflow-hidden"
+        showCloseButton={false}
+      >
+        <DialogHeader className="px-4 py-3 border-border border-b">
+          <DialogTitle className="flex items-center gap-2 font-mono font-normal text-[11px] text-muted-foreground uppercase tracking-wider">
             <MapPin size={14} className="text-primary" /> Location Picker
           </DialogTitle>
         </DialogHeader>
 
-        {/* Search */}
-        <div className="flex gap-2 px-4 py-2.5 border-b border-border/60 shrink-0">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') void handleSearch(); }}
-            placeholder="Search for a place…"
-            className="flex-1"
-          />
-          <Button variant="outline" size="sm" onClick={() => void handleSearch()} disabled={searching}>
-            <Search size={12} />
-            {searching ? 'Searching…' : 'Search'}
-          </Button>
-        </div>
+        {/* Search — doesn't apply to a fictional single-image map */}
+        {mapStyle !== 'image' && (
+          <div className="flex gap-2 px-4 py-2.5 border-border/60 border-b shrink-0">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleSearch()
+              }}
+              placeholder="Search for a place…"
+              className="flex-1"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleSearch()}
+              disabled={searching}
+            >
+              <Search size={12} />
+              {searching ? 'Searching…' : 'Search'}
+            </Button>
+          </div>
+        )}
 
         {searchErr && (
-          <div className="px-4 py-1.5 text-xs text-destructive border-b border-border/60 shrink-0">{searchErr}</div>
+          <div className="px-4 py-1.5 border-border/60 border-b text-destructive text-xs shrink-0">
+            {searchErr}
+          </div>
         )}
 
         {/* Map — isolation: isolate keeps Leaflet's high z-index controls inside this stacking ctx */}
         <div className="flex-1 min-h-0" style={{ isolation: 'isolate' }}>
-          <div ref={mapDivRef} className="w-full h-full" />
+          {mapSource ? (
+            <div ref={mapDivRef} className="w-full h-full" />
+          ) : (
+            <div className="flex flex-col justify-center items-center gap-1 px-6 w-full h-full text-muted-foreground text-center">
+              <MapPin size={20} className="mb-1 text-muted-foreground/50" />
+              <span className="text-[12px]">
+                No map image set for this case yet.
+              </span>
+              <span className="text-[11px] text-muted-foreground/70">
+                Upload one in Settings → Map.
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-border shrink-0 gap-4">
+        <div className="flex justify-between items-center gap-4 px-4 py-3 border-border border-t shrink-0">
           <div className="flex-1 min-w-0">
             {location ? (
               <div className="space-y-1.5">
-                <div className="text-[10px] font-mono text-muted-foreground/80">
+                <div className="font-mono text-[10px] text-muted-foreground/80">
                   {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
                 </div>
                 <Input
                   value={location.label ?? ''}
-                  onChange={(e) => setLocation((prev) => prev ? { ...prev, label: e.target.value } : null)}
+                  onChange={(e) =>
+                    setLocation((prev) =>
+                      prev ? { ...prev, label: e.target.value } : null,
+                    )
+                  }
                   placeholder="Label (optional)"
                   className="h-7 text-xs"
                 />
               </div>
             ) : (
-              <span className="text-[11px] text-muted-foreground/70">Click the map to place a pin</span>
+              <span className="text-[11px] text-muted-foreground/70">
+                Click the map to place a pin
+              </span>
             )}
           </div>
 
           <div className="flex gap-2 shrink-0">
             {location && (
-              <Button variant="destructive" size="sm" onClick={clearLocation}>Clear</Button>
+              <Button variant="destructive" size="sm" onClick={clearLocation}>
+                Clear
+              </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" onClick={() => { if (location) onConfirm(location); }} disabled={!location}>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (location) onConfirm(location)
+              }}
+              disabled={!location}
+            >
               Set Location
             </Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

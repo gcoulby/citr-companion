@@ -1,0 +1,29 @@
+/* BlockNote's mantine theme paints its own gray editor background —
+   override it so the editor sits flush on the app's own dark background
+   instead of looking like a separate embedded widget. */
+.bn-editor {
+  background: none !important;
+}
+
+/* The empty image/video/audio/file block's "Add ..." placeholder ships with
+   a hardcoded light-gray fill (rgb(242,241,238)) that isn't theme-aware at
+   all, so it stays bright even in dark mode. Match the app's own card/border
+   tokens instead. */
+[data-file-block] .bn-add-file-button {
+  background-color: var(--card) !important;
+  color: var(--muted-foreground) !important;
+  border: 1px solid var(--border);
+}
+
+.bn-editor[contenteditable='true'] [data-file-block] .bn-add-file-button:hover,
+[data-file-block] .bn-file-name-with-icon:hover,
+.ProseMirror-selectednode .bn-file-name-with-icon {
+  background-color: var(--muted) !important;
+}
+
+/* Uploaded media (image/video/audio) gets a subtle border + rounded corners
+   so it reads as part of the document rather than a bare, edge-to-edge img. */
+[data-file-block] .bn-visual-media {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}

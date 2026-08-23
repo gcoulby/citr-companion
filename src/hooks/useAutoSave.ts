@@ -4,6 +4,7 @@ import { useCanvasStore } from '../store/canvasStore';
 import { useFileStore } from '../store/fileStore';
 import { useInvestigatorStore } from '../store/investigatorStore';
 import { useMysteryStore } from '../store/mysteryStore';
+import { useCaseSettingsStore } from '../store/caseSettingsStore';
 import { writeCitr } from '../file/citrWriter';
 import { writeCitrFile, downloadBlob, upsertCaseEntry, saveCaseBlobToIDB } from '../file/fileHandle';
 import { encryptBlob } from '../lib/crypto';
@@ -39,7 +40,7 @@ async function performSave(
   const blob = await writeCitr({
     manifest, nodes, edges, positions, viewport, layout, investigator, mystery,
     existingFile: currentFileBlob, contentDirty, contentMap, assetMap,
-    settings: {},
+    settings: useCaseSettingsStore.getState().settings,
   });
 
   // Keep the unencrypted blob in memory for future merges
@@ -94,7 +95,8 @@ export function useAutoSave() {
   const layout = useCanvasStore((s) => s.layout);
   const investigator = useInvestigatorStore();
   const mystery = useMysteryStore();
-  const { handle, filename, manifest, setSaveStatus } = useFileStore();
+  const caseSettings = useCaseSettingsStore((s) => s.settings);
+  const { handle, filename, manifest, setSaveStatus, contentRevision } = useFileStore();
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFirstRender = useRef(true);
@@ -125,5 +127,5 @@ export function useAutoSave() {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, positions, viewport, layout, investigator, mystery]);
+  }, [nodes, edges, positions, viewport, layout, investigator, mystery, contentRevision, caseSettings]);
 }

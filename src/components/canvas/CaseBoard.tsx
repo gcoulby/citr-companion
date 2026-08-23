@@ -5,6 +5,7 @@ import {
   Background,
   BackgroundVariant,
   Controls,
+  ControlButton,
   ConnectionMode,
   useReactFlow,
   type Node,
@@ -16,6 +17,7 @@ import {
   type OnConnectEnd,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { GitFork, Network } from 'lucide-react'
 import { useGraphStore } from '../../store/graphStore'
 import { useCanvasStore } from '../../store/canvasStore'
 import { NodeCard } from './NodeCard'
@@ -24,6 +26,12 @@ import { getCachedAsset } from '../../lib/assetCache'
 
 const nodeTypes: NodeTypes = { nodeCard: NodeCard as NodeTypes[string] }
 const edgeTypes: EdgeTypes = { edgeLine: EdgeLine as EdgeTypes[string] }
+
+function fallbackPosition(id: string): { x: number; y: number } {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
+  return { x: Math.abs(h % 600), y: Math.abs((h >> 8) % 400) }
+}
 
 import type { NodeType } from '../../types'
 
@@ -39,6 +47,8 @@ interface CaseBoardInnerProps {
   focusNodeId: string | null
   onFocusConsumed: () => void
   fitViewTrigger: number
+  onDagre: () => void
+  onForce: () => void
 }
 
 function CaseBoardInner({
@@ -53,6 +63,8 @@ function CaseBoardInner({
   focusNodeId,
   onFocusConsumed,
   fitViewTrigger,
+  onDagre,
+  onForce,
 }: CaseBoardInnerProps) {
   const { nodes: graphNodes, edges: graphEdges, addEdge: addGraphEdge } = useGraphStore()
   const { positions, setPosition, viewport, setViewport } = useCanvasStore()
@@ -76,7 +88,12 @@ function CaseBoardInner({
       Object.values(graphNodes).map((n) => ({
         id: n.id,
         type: 'nodeCard',
-        position: positions[n.id] ?? { x: Math.random() * 600, y: Math.random() * 400 },
+        // A node without a stored position (not yet dragged) falls back to a
+        // spot derived deterministically from its id — stable across
+        // re-renders, unlike Math.random() which reshuffled every node
+        // lacking a position on every render, making freshly created nodes
+        // appear to jitter/"bug out" until each was manually dragged once.
+        position: positions[n.id] ?? fallbackPosition(n.id),
         data: {
           node: n,
           thumbnailUrl: n.thumbnail ? getCachedAsset(n.thumbnail) : undefined,
@@ -199,7 +216,14 @@ function CaseBoardInner({
       colorMode="dark"
     >
       <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1e2430" />
-      <Controls />
+      <Controls>
+        <ControlButton onClick={onDagre} title="Dagre layout">
+          <GitFork />
+        </ControlButton>
+        <ControlButton onClick={onForce} title="Force layout">
+          <Network />
+        </ControlButton>
+      </Controls>
       {/* <MiniMap nodeColor={(node) => (node.selected ? '#fbbf24' : '#ffffff')} maskColor="rgba(13,17,23,0.85)" style={{ background: '#0d1117' }} /> */}
     </ReactFlow>
   )
@@ -217,6 +241,8 @@ interface CaseBoardProps {
   focusNodeId: string | null
   onFocusConsumed: () => void
   fitViewTrigger: number
+  onDagre: () => void
+  onForce: () => void
 }
 
 export function CaseBoard(props: CaseBoardProps) {

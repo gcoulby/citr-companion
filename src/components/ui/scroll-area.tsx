@@ -11,12 +11,19 @@ function ScrollArea({
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
-      className={cn("relative", className)}
+      // flex + flex-col so the Viewport below can size itself with flex-1
+      // instead of height:100% — a percentage height silently fails to
+      // resolve (falls back to content-sized/auto) when this Root's own
+      // height comes from an ancestor's max-height clamp rather than an
+      // explicit height, which is exactly how every dialog body here is
+      // sized. flex-1 distributes space through the flex algorithm instead,
+      // which doesn't have that "definite height" requirement.
+      className={cn("relative flex flex-col overflow-hidden", className)}
       {...props}
     >
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
-        className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
+        className="flex-1 min-h-0 min-w-0 rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
       >
         {children}
       </ScrollAreaPrimitive.Viewport>

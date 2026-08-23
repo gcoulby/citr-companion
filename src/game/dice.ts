@@ -1,5 +1,10 @@
 // Pure dice-rolling helpers implementing the "Caught in the Rain" tables.
 // No store access, no side effects — every function just returns a result.
+//
+// Each mechanic exposes two functions: `rollX(...)` rolls the app's own RNG,
+// and `xFromRoll(roll, ...)` computes the same outcome from a roll supplied
+// by the caller (used by the Roll block's "physical dice" mode, where the
+// player types in what they actually rolled at the table).
 
 export function rollD6(): number {
   return 1 + Math.floor(Math.random() * 6);
@@ -12,10 +17,12 @@ export interface D2Roll {
   doubles: boolean;
 }
 
-export function roll2d6(): D2Roll {
-  const a = rollD6();
-  const b = rollD6();
+export function d2FromDice(a: number, b: number): D2Roll {
   return { a, b, sum: a + b, doubles: a === b };
+}
+
+export function roll2d6(): D2Roll {
+  return d2FromDice(rollD6(), rollD6());
 }
 
 export interface D66Roll {
@@ -24,9 +31,13 @@ export interface D66Roll {
   value: number; // e.g. tens=1, units=4 -> 14
 }
 
+export function d66FromDice(tens: number, units: number): D66Roll {
+  return { tens, units, value: tens * 10 + units };
+}
+
 export function rollD66(): D66Roll {
   const { a, b } = roll2d6();
-  return { tens: a, units: b, value: a * 10 + b };
+  return d66FromDice(a, b);
 }
 
 // ── Attribute tests (p.27) ───────────────────────────────────────────────────
@@ -42,8 +53,7 @@ export interface AttributeTestResult {
   belowDanger: boolean; // roll.sum < danger
 }
 
-export function attributeTest(attributeValue: number, danger: number): AttributeTestResult {
-  const roll = roll2d6();
+export function attributeTestFromRoll(roll: D2Roll, attributeValue: number, danger: number): AttributeTestResult {
   const total = roll.sum + attributeValue;
   const outcome: AttributeOutcome = total <= 6 ? 'failure' : total <= 9 ? 'cost' : 'success';
   return {
@@ -54,6 +64,10 @@ export function attributeTest(attributeValue: number, danger: number): Attribute
     randomEvent: roll.doubles,
     belowDanger: roll.sum < danger,
   };
+}
+
+export function attributeTest(attributeValue: number, danger: number): AttributeTestResult {
+  return attributeTestFromRoll(roll2d6(), attributeValue, danger);
 }
 
 // ── Investigation roll (p.23) ────────────────────────────────────────────────
@@ -67,11 +81,14 @@ export interface InvestigationRollResult {
   outcome: InvestigationRollOutcome;
 }
 
-export function rollInvestigation(danger: number): InvestigationRollResult {
-  const roll = rollD6();
+export function investigationFromRoll(roll: number, danger: number): InvestigationRollResult {
   const total = roll + danger;
   const outcome: InvestigationRollOutcome = total <= 3 ? 'quiet' : total <= 5 ? 'threatLevel1' : 'threatLevel2';
   return { roll, danger, total, outcome };
+}
+
+export function rollInvestigation(danger: number): InvestigationRollResult {
+  return investigationFromRoll(rollD6(), danger);
 }
 
 // ── Consequences (p.28) ──────────────────────────────────────────────────────
@@ -85,8 +102,7 @@ export interface ConsequenceRollResult {
   outcome: ConsequenceOutcome;
 }
 
-export function rollConsequences(bonus = 0): ConsequenceRollResult {
-  const roll = rollD6();
+export function consequenceFromRoll(roll: number, bonus = 0): ConsequenceRollResult {
   const total = roll + bonus;
   let outcome: ConsequenceOutcome;
   if (total <= 3) outcome = 'raiseThreat';
@@ -95,6 +111,10 @@ export function rollConsequences(bonus = 0): ConsequenceRollResult {
   else if (total <= 8) outcome = 'fatigue2';
   else outcome = 'mustStop';
   return { roll, bonus, total, outcome };
+}
+
+export function rollConsequences(bonus = 0): ConsequenceRollResult {
+  return consequenceFromRoll(rollD6(), bonus);
 }
 
 // ── Rest (p.33) ───────────────────────────────────────────────────────────────
@@ -112,8 +132,11 @@ export interface YesNoResult {
   outcome: YesNoOutcome;
 }
 
-export function rollYesNo(): YesNoResult {
-  const roll = rollD6();
+export function yesNoFromRoll(roll: number): YesNoResult {
   const outcome: YesNoOutcome = roll <= 2 ? 'extremeNo' : roll === 3 ? 'no' : roll === 4 ? 'yes' : 'extremeYes';
   return { roll, outcome };
+}
+
+export function rollYesNo(): YesNoResult {
+  return yesNoFromRoll(rollD6());
 }
