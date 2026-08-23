@@ -43,6 +43,35 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Catches fatal JS errors that prevent React from mounting (or that
+      // crash a lazy-loaded chunk, e.g. PDF View) — without this, a failure
+      // this early just leaves a blank black screen with nothing in the DOM
+      // to inspect, which is unusable on a device without console access.
+      function showFatalError(label, detail) {
+        var d = document.getElementById('_fatal')
+        if (!d) {
+          d = document.createElement('div')
+          d.id = '_fatal'
+          d.style.cssText =
+            'position:fixed;inset:0;z-index:99999;background:#0d1117;color:#f5a623;' +
+            'font:13px/1.6 monospace;padding:24px;overflow:auto;white-space:pre-wrap;'
+          d.innerHTML =
+            '<h2 style="color:#e6edf3;margin-bottom:12px;">Caught in the Rain — failed to start</h2>'
+          document.body.appendChild(d)
+        }
+        var line = document.createElement('div')
+        line.textContent = '[' + label + '] ' + detail
+        d.appendChild(line)
+      }
+      window.addEventListener('error', function (e) {
+        showFatalError('ERROR', (e.message || e) + ' at ' + (e.filename || '?') + ':' + (e.lineno || '?'))
+      })
+      window.addEventListener('unhandledrejection', function (e) {
+        var reason = e.reason
+        showFatalError('UNHANDLED REJECTION', reason ? reason.stack || reason.message || String(reason) : 'Unknown rejection')
+      })
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
