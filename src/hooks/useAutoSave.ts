@@ -5,6 +5,7 @@ import { useFileStore } from '../store/fileStore';
 import { useInvestigatorStore } from '../store/investigatorStore';
 import { useMysteryStore } from '../store/mysteryStore';
 import { useCaseSettingsStore } from '../store/caseSettingsStore';
+import { usePdfLibraryStore } from '../store/pdfLibraryStore';
 import { writeCitr } from '../file/citrWriter';
 import { writeCitrFile, downloadBlob, upsertCaseEntry, saveCaseBlobToIDB } from '../file/fileHandle';
 import { encryptBlob } from '../lib/crypto';
@@ -41,6 +42,7 @@ async function performSave(
     manifest, nodes, edges, positions, viewport, layout, investigator, mystery,
     existingFile: currentFileBlob, contentDirty, contentMap, assetMap,
     settings: useCaseSettingsStore.getState().settings,
+    pdfEmbeds: usePdfLibraryStore.getState().embeds,
   });
 
   // Keep the unencrypted blob in memory for future merges
@@ -96,6 +98,7 @@ export function useAutoSave() {
   const investigator = useInvestigatorStore();
   const mystery = useMysteryStore();
   const caseSettings = useCaseSettingsStore((s) => s.settings);
+  const pdfEmbeds = usePdfLibraryStore((s) => s.embeds);
   const { handle, filename, manifest, setSaveStatus, contentRevision } = useFileStore();
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -127,5 +130,5 @@ export function useAutoSave() {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, positions, viewport, layout, investigator, mystery, contentRevision, caseSettings]);
+  }, [nodes, edges, positions, viewport, layout, investigator, mystery, contentRevision, caseSettings, pdfEmbeds]);
 }
