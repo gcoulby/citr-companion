@@ -9,7 +9,6 @@
     "lint": "eslint .",
     "preview": "vite preview"
   },
-  "packageManager": "pnpm@11.1.0",
   "dependencies": {
     "@blocknote/core": "^0.47.2",
     "@blocknote/mantine": "^0.47.2",
