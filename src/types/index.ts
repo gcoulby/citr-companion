@@ -151,6 +151,26 @@ export interface CaseSettings {
 
 export const DEFAULT_CASE_SETTINGS: CaseSettings = {};
 
+// A single imported PDF, shown as one tab in PDF View. Stored in pdfs.json;
+// the binary itself rides the existing assets/ pipeline (assetMap), same as
+// node attachments and the custom map image.
+export interface PdfEmbed {
+  id: string;
+  fileName: string;
+  assetId: string;
+  importedAt: string;
+  pageCount: number;
+  mode: 'full' | 'single-page';
+  /** Which page of the original source this came from, single-page mode only
+   *  — for the user's own reference; the source document isn't retained. */
+  sourcePageIndex?: number;
+  order: number;
+  /** Last-set PDFViewer.currentScale (a raw multiplier); unset = auto-fit page-width. */
+  zoom?: number;
+  /** Last page shown; unset = page 1. */
+  currentPage?: number;
+}
+
 export type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'error';
 
 export interface FileState {

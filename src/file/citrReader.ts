@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import type { GraphNode, GraphEdge, NodeId, EdgeId, CaseManifest, CaseSettings } from '../types';
+import type { GraphNode, GraphEdge, NodeId, EdgeId, CaseManifest, CaseSettings, PdfEmbed } from '../types';
 import { DEFAULT_CASE_SETTINGS, CASE_NOTES_ID } from '../types';
 import type { Investigator, Mystery } from '../game/types';
 import { deobfuscate } from '../lib/obfuscate';
@@ -55,6 +55,7 @@ export interface CitrData {
   layout: 'freeform' | 'dagre' | 'force';
   assets: Record<string, LoadedAsset>;  // key = assetId (filename under assets/)
   settings: CaseSettings;
+  pdfEmbeds: PdfEmbed[];
   investigator: Investigator;
   mystery: Mystery;
   // nodeId -> ids of documents (node docs or CASE_NOTES_ID) that @-mention it,
@@ -114,6 +115,9 @@ export async function readCitr(file: File | Blob): Promise<CitrData> {
     ...(settingsRaw ? (JSON.parse(settingsRaw) as Partial<CaseSettings>) : {}),
   };
 
+  const pdfsRaw = await zip.file('pdfs.json')?.async('string');
+  const pdfEmbeds: PdfEmbed[] = pdfsRaw ? (JSON.parse(pdfsRaw) as PdfEmbed[]) : [];
+
   const investigatorRaw = await zip.file('investigator.json')?.async('string');
   const investigator: Investigator = investigatorRaw
     ? { ...emptyInvestigator(), ...(JSON.parse(investigatorRaw) as Partial<Investigator>) }
@@ -153,7 +157,7 @@ export async function readCitr(file: File | Blob): Promise<CitrData> {
     })
   );
 
-  return { manifest, nodes, edges, positions, viewport, layout, assets, settings, investigator, mystery, backlinks };
+  return { manifest, nodes, edges, positions, viewport, layout, assets, settings, pdfEmbeds, investigator, mystery, backlinks };
 }
 
 export async function loadNodeContent(file: File | Blob, nodeId: NodeId): Promise<unknown> {

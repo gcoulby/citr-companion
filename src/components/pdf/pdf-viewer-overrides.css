@@ -1,0 +1,29 @@
+/* pdfjs's own layout (page border, canvas/text layer sizing, the many
+ * `calc(Npx * var(--total-scale-factor))` rules) is authored assuming the
+ * browser's default box model (content-box). Tailwind's Preflight forces
+ * `box-sizing: border-box` on every element in the app via a universal
+ * selector, which pdfjs's own CSS never opts out of — under a forced
+ * border-box, sizes meant to be the page's content box become its outer box
+ * instead, throwing off the text layer's alignment against the rendered
+ * canvas. */
+.pdfViewer,
+.pdfViewer * {
+  box-sizing: content-box;
+}
+
+/* Establishes its own stacking context so nothing inside a page (pdfjs
+ * assigns incrementing inline z-indexes to its own layers) can climb above
+ * the app's own dialogs/sidebars in the root stacking context. */
+.pdfViewer .page {
+  min-height: 0;
+  padding: 0;
+  isolation: isolate;
+}
+
+/* pdfjs's default "current match" find highlight is a dim, muddy dark green
+ * — barely visible, and easy to miss during the fuzzy-search tab's brief
+ * flash-on-click highlight. Brighter and more opaque so it actually reads
+ * as "look, right here". */
+.pdfViewer .textLayer .highlight.selected {
+  --highlight-selected-bg-color: rgb(255 230 0 / 0.7);
+}

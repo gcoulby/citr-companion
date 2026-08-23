@@ -6,6 +6,7 @@ import { useInvestigatorStore } from './store/investigatorStore'
 import { useMysteryStore } from './store/mysteryStore'
 import { useBacklinksStore } from './store/backlinksStore'
 import { useCaseSettingsStore } from './store/caseSettingsStore'
+import { usePdfLibraryStore } from './store/pdfLibraryStore'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useSettingsStore } from './store/settingsStore'
 import { Button } from './components/ui/button'
@@ -46,6 +47,7 @@ import { FileExplorer } from './components/dialogs/FileExplorer'
 import { ContentEditor } from './components/editor/ContentEditor'
 import { CaseBoard } from './components/canvas/CaseBoard'
 import { MapView } from './components/canvas/MapView'
+import { PdfView } from './components/pdf/PdfView'
 import {
   ContextMenu,
   type ContextMenuItem,
@@ -79,6 +81,7 @@ import {
   Download,
   NotebookPen,
   Map,
+  FileStack,
 } from 'lucide-react'
 import { SaveIndicator } from './components/SaveIndicator'
 import type { CaseManifest, NodeType, DocumentRef } from './types'
@@ -95,7 +98,7 @@ import { MoreVertical } from 'lucide-react'
 
 // ── Toolbar ──────────────────────────────────────────────────────────────────
 
-type MainView = 'board' | 'notes' | 'map'
+type MainView = 'board' | 'notes' | 'map' | 'pdf'
 
 interface ToolbarProps {
   onSearch: () => void
@@ -105,6 +108,7 @@ interface ToolbarProps {
   onBoard: () => void
   onCaseNotes: () => void
   onMap: () => void
+  onPdfView: () => void
   onSettings: () => void
   onCloseCase: () => void
   onExport: () => void
@@ -154,6 +158,7 @@ function Toolbar({
   onBoard,
   onCaseNotes,
   onMap,
+  onPdfView,
   onSettings,
   onCloseCase,
   onExport,
@@ -186,6 +191,12 @@ function Toolbar({
           title="Map"
           icon={<Map size={16} />}
           active={activeView === 'map'}
+        />
+        <ToolbarButton
+          onClick={onPdfView}
+          title="PDF View"
+          icon={<FileStack size={16} />}
+          active={activeView === 'pdf'}
         />
         <SaveIndicator />
         <DropdownMenu>
@@ -245,7 +256,7 @@ function Toolbar({
       <span className="mr-2 max-w-60 font-display text-[13px] text-foreground truncate tracking-wide">
         {manifest?.title ?? 'Caught in the Rain'}
       </span>
-      <Separator orientation="vertical" className="h-4" />
+      <Separator orientation="vertical" className="h-full" />
       <ToolbarButton
         onClick={onBoard}
         title="Board — case graph"
@@ -267,7 +278,14 @@ function Toolbar({
         label="Map"
         active={activeView === 'map'}
       />
-      <Separator orientation="vertical" className="h-4" />
+      <ToolbarButton
+        onClick={onPdfView}
+        title="PDF View — rulebooks, handouts, reference PDFs"
+        icon={<FileStack size={12} />}
+        label="PDF"
+        active={activeView === 'pdf'}
+      />
+      <Separator orientation="vertical" className="h-full" />
       <ToolbarButton
         onClick={onSearch}
         title="Search  Ctrl+K"
@@ -296,7 +314,7 @@ function Toolbar({
         />
       )}
       <SaveIndicator />
-      <Separator orientation="vertical" className="ml-2 h-4" />
+      <Separator orientation="vertical" className="ml-2 h-full" />
       <ToolbarButton
         onClick={onSettings}
         title="Settings — theme"
@@ -367,6 +385,7 @@ function AppInner() {
   const [showFiles, setShowFiles] = useState(false)
   const [showPlay, setShowPlay] = useState(false)
   const [showMapView, setShowMapView] = useState(false)
+  const [showPdfView, setShowPdfView] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<NodeType | null>(null)
@@ -443,6 +462,7 @@ function AppInner() {
       loadInvestigator(data.investigator)
       loadMystery(data.mystery)
       useCaseSettingsStore.getState().load(data.settings)
+      usePdfLibraryStore.getState().load(data.pdfEmbeds)
       ingestAssets(data.assets)
       useBacklinksStore.getState().seed(data.backlinks)
       setSaveStatus('saved')
@@ -606,6 +626,7 @@ function AppInner() {
         resetInvestigator()
         resetMystery()
         useCaseSettingsStore.getState().reset()
+        usePdfLibraryStore.getState().reset()
         const investigator = useInvestigatorStore.getState()
         const mystery = useMysteryStore.getState()
         const blob = await writeCitr({
@@ -618,6 +639,7 @@ function AppInner() {
           investigator,
           mystery,
           settings: {},
+          pdfEmbeds: [],
         })
         setCurrentFileBlob(blob)
         const diskBlob = passphrase ? await encryptBlob(blob, passphrase) : blob
@@ -674,10 +696,13 @@ function AppInner() {
     setIsOpen(false)
     setSelectedNodeId(null)
     setShowPlay(false)
+    setShowMapView(false)
+    setShowPdfView(false)
     setEditorRef(null)
     useFileStore.getState().reset()
     useBacklinksStore.getState().reset()
     useCaseSettingsStore.getState().reset()
+    usePdfLibraryStore.getState().reset()
     refreshCases()
   }, [refreshCases])
 
@@ -928,19 +953,27 @@ function AppInner() {
         onBoard={() => {
           setEditorRef(null)
           setShowMapView(false)
+          setShowPdfView(false)
         }}
         onCaseNotes={() => {
           setShowMapView(false)
+          setShowPdfView(false)
           setEditorRef((r) => (r?.kind === 'case' ? null : { kind: 'case' }))
         }}
         onMap={() => {
           setEditorRef(null)
+          setShowPdfView(false)
           setShowMapView((v) => !v)
+        }}
+        onPdfView={() => {
+          setEditorRef(null)
+          setShowMapView(false)
+          setShowPdfView((v) => !v)
         }}
         onSettings={() => setShowSettings(true)}
         onCloseCase={handleCloseCase}
         onExport={() => void handleExport()}
-        activeView={editorRef ? 'notes' : showMapView ? 'map' : 'board'}
+        activeView={editorRef ? 'notes' : showMapView ? 'map' : showPdfView ? 'pdf' : 'board'}
       />
 
       {editorRef ? (
@@ -951,7 +984,10 @@ function AppInner() {
           />
           {showPlay && (
             <div className="top-0 right-0 bottom-0 z-60 absolute shadow-2xl">
-              <PlayPanel onClose={() => setShowPlay(false)} onSelectNode={handleSelectNodeFromPlay} />
+              <PlayPanel
+                onClose={() => setShowPlay(false)}
+                onSelectNode={handleSelectNodeFromPlay}
+              />
             </div>
           )}
         </div>
@@ -960,7 +996,22 @@ function AppInner() {
           <MapView onSelectNode={handleSelectNodeFromMap} />
           {showPlay && (
             <div className="top-0 right-0 bottom-0 z-60 absolute shadow-2xl">
-              <PlayPanel onClose={() => setShowPlay(false)} onSelectNode={handleSelectNodeFromPlay} />
+              <PlayPanel
+                onClose={() => setShowPlay(false)}
+                onSelectNode={handleSelectNodeFromPlay}
+              />
+            </div>
+          )}
+        </div>
+      ) : showPdfView ? (
+        <div className="relative flex flex-1 min-h-0 overflow-hidden">
+          <PdfView />
+          {showPlay && (
+            <div className="top-0 right-0 bottom-0 z-60 absolute shadow-2xl">
+              <PlayPanel
+                onClose={() => setShowPlay(false)}
+                onSelectNode={handleSelectNodeFromPlay}
+              />
             </div>
           )}
         </div>
@@ -1028,7 +1079,12 @@ function AppInner() {
             />
           )}
 
-          {showPlay && <PlayPanel onClose={() => setShowPlay(false)} onSelectNode={handleSelectNodeFromPlay} />}
+          {showPlay && (
+            <PlayPanel
+              onClose={() => setShowPlay(false)}
+              onSelectNode={handleSelectNodeFromPlay}
+            />
+          )}
         </SidebarProvider>
       )}
 

@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import type { GraphNode, GraphEdge, NodeId, EdgeId, CaseManifest, CaseSettings } from '../types';
+import type { GraphNode, GraphEdge, NodeId, EdgeId, CaseManifest, CaseSettings, PdfEmbed } from '../types';
 import type { Investigator, Mystery } from '../game/types';
 import { obfuscate } from '../lib/obfuscate';
 
@@ -17,6 +17,7 @@ interface WriteOptions {
   contentMap?: Map<NodeId, unknown>;
   assetMap?: Map<string, ArrayBuffer>;
   settings?: CaseSettings;
+  pdfEmbeds?: PdfEmbed[];
 }
 
 export async function writeCitr(opts: WriteOptions): Promise<Blob> {
@@ -52,6 +53,10 @@ export async function writeCitr(opts: WriteOptions): Promise<Blob> {
 
   if (opts.settings !== undefined) {
     zip.file('settings.json', JSON.stringify(opts.settings, null, 2));
+  }
+
+  if (opts.pdfEmbeds !== undefined) {
+    zip.file('pdfs.json', JSON.stringify(opts.pdfEmbeds, null, 2));
   }
 
   // Write the investigator sheet
