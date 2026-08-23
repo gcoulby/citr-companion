@@ -1,0 +1,49 @@
+.map-view-tooltip {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  opacity: 1;
+}
+
+.map-view-tooltip::before {
+  border-top-color: var(--border) !important;
+}
+
+.map-view-tooltip-card {
+  max-width: 220px;
+  padding: 8px 10px;
+  font-family: var(--font-mono, monospace);
+}
+
+.map-view-tooltip-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+  margin-bottom: 2px;
+}
+
+.map-view-tooltip-type {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+  margin-bottom: 4px;
+}
+
+.map-view-tooltip-summary {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  line-height: 1.4;
+  margin-bottom: 4px;
+  max-height: 4.2em;
+  overflow: hidden;
+}
+
+.map-view-tooltip-hint {
+  font-size: 9px;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

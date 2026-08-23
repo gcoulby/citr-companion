@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { Input } from './input'
-import { Popover, PopoverContent, PopoverTrigger } from './popover'
+import { Popover, PopoverAnchor, PopoverContent } from './popover'
 import { Command, CommandList, CommandEmpty, CommandGroup, CommandItem } from './command'
 
 interface TagInputProps {
@@ -43,7 +43,7 @@ export function TagInput({ tags, suggestions, onAdd, onRemove, placeholder }: Ta
         ))}
       </div>
       <Popover open={open && filtered.length > 0}>
-        <PopoverTrigger asChild>
+        <PopoverAnchor asChild>
           <Input
             value={value}
             placeholder={placeholder}
@@ -63,9 +63,9 @@ export function TagInput({ tags, suggestions, onAdd, onRemove, placeholder }: Ta
               }
             }}
           />
-        </PopoverTrigger>
+        </PopoverAnchor>
         <PopoverContent
-          className="p-0 w-(--radix-popover-trigger-width)"
+          className="p-0 w-72"
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
         >

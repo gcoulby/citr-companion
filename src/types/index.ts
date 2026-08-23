@@ -39,6 +39,11 @@ export interface NodeLocation {
   lat: number;
   lng: number;
   label?: string;
+  /** Adjusts the node-card/panel mini-map preview's zoom relative to its
+   *  automatic default (whole-image-fit for a custom map image, or a
+   *  standard street-level zoom for real tile maps). Doesn't affect the
+   *  interactive location picker, which always starts at the same default. */
+  zoomOffset?: number;
 }
 
 // Metadata carried by `clue`/`truth`/`threat` typed nodes, mirroring the

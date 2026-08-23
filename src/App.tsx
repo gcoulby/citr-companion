@@ -45,6 +45,7 @@ import { InfoPanel } from './components/dialogs/InfoPanel'
 import { FileExplorer } from './components/dialogs/FileExplorer'
 import { ContentEditor } from './components/editor/ContentEditor'
 import { CaseBoard } from './components/canvas/CaseBoard'
+import { MapView } from './components/canvas/MapView'
 import {
   ContextMenu,
   type ContextMenuItem,
@@ -77,6 +78,7 @@ import {
   FolderClosed,
   Download,
   NotebookPen,
+  Map,
 } from 'lucide-react'
 import { SaveIndicator } from './components/SaveIndicator'
 import type { CaseManifest, NodeType, DocumentRef } from './types'
@@ -93,6 +95,8 @@ import { MoreVertical } from 'lucide-react'
 
 // ── Toolbar ──────────────────────────────────────────────────────────────────
 
+type MainView = 'board' | 'notes' | 'map'
+
 interface ToolbarProps {
   onSearch: () => void
   onInfo: () => void
@@ -100,10 +104,11 @@ interface ToolbarProps {
   onPlay: () => void
   onBoard: () => void
   onCaseNotes: () => void
+  onMap: () => void
   onSettings: () => void
   onCloseCase: () => void
   onExport: () => void
-  notesOpen: boolean
+  activeView: MainView
 }
 
 function ToolbarButton({
@@ -148,10 +153,11 @@ function Toolbar({
   onPlay,
   onBoard,
   onCaseNotes,
+  onMap,
   onSettings,
   onCloseCase,
   onExport,
-  notesOpen,
+  activeView,
 }: ToolbarProps) {
   const manifest = useFileStore((s) => s.manifest)
   const storageMode = useFileStore((s) => s.storageMode)
@@ -167,13 +173,19 @@ function Toolbar({
           onClick={onBoard}
           title="Board"
           icon={<Layers2 size={16} />}
-          active={!notesOpen}
+          active={activeView === 'board'}
         />
         <ToolbarButton
           onClick={onCaseNotes}
           title="Case Notes"
           icon={<NotebookPen size={16} />}
-          active={notesOpen}
+          active={activeView === 'notes'}
+        />
+        <ToolbarButton
+          onClick={onMap}
+          title="Map"
+          icon={<Map size={16} />}
+          active={activeView === 'map'}
         />
         <SaveIndicator />
         <DropdownMenu>
@@ -198,6 +210,10 @@ function Toolbar({
             <DropdownMenuItem onClick={onPlay}>
               <Dices size={13} />
               Play
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onMap}>
+              <Map size={13} />
+              Map
             </DropdownMenuItem>
             {storageMode === 'idb' && (
               <DropdownMenuItem onClick={onExport}>
@@ -235,14 +251,21 @@ function Toolbar({
         title="Board — case graph"
         icon={<Layers2 size={12} />}
         label="Board"
-        active={!notesOpen}
+        active={activeView === 'board'}
       />
       <ToolbarButton
         onClick={onCaseNotes}
         title="Case Notes — rich session log"
         icon={<NotebookPen size={12} />}
         label="Notes"
-        active={notesOpen}
+        active={activeView === 'notes'}
+      />
+      <ToolbarButton
+        onClick={onMap}
+        title="Map — every located node in one place"
+        icon={<Map size={12} />}
+        label="Map"
+        active={activeView === 'map'}
       />
       <Separator orientation="vertical" className="h-4" />
       <ToolbarButton
@@ -343,6 +366,7 @@ function AppInner() {
   const [showInfo, setShowInfo] = useState(false)
   const [showFiles, setShowFiles] = useState(false)
   const [showPlay, setShowPlay] = useState(false)
+  const [showMapView, setShowMapView] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<NodeType | null>(null)
@@ -815,6 +839,23 @@ function AppInner() {
     setFocusNodeId(nodeId)
   }, [])
 
+  // "Edit clue" in the Play panel's Mystery tab — select the clue's board
+  // node and close Play so its side panel isn't fighting for the same space.
+  const handleSelectNodeFromPlay = useCallback((nodeId: string) => {
+    setSelectedNodeId(nodeId)
+    setFocusNodeId(nodeId)
+    setShowPlay(false)
+  }, [])
+
+  // Clicking a pin in the Map view — jump back to the Board with that
+  // node's side panel open, same pattern as the Play-panel "Edit clue" link.
+  const handleSelectNodeFromMap = useCallback((nodeId: string) => {
+    setShowMapView(false)
+    setEditorRef(null)
+    setSelectedNodeId(nodeId)
+    setFocusNodeId(nodeId)
+  }, [])
+
   const handleAddNodeFromSidebar = useCallback(() => {
     setShowNewNode({
       x: 200 + Math.random() * 400,
@@ -884,14 +925,22 @@ function AppInner() {
         onInfo={() => setShowInfo(true)}
         onFiles={() => setShowFiles(true)}
         onPlay={() => setShowPlay((v) => !v)}
-        onBoard={() => setEditorRef(null)}
-        onCaseNotes={() =>
+        onBoard={() => {
+          setEditorRef(null)
+          setShowMapView(false)
+        }}
+        onCaseNotes={() => {
+          setShowMapView(false)
           setEditorRef((r) => (r?.kind === 'case' ? null : { kind: 'case' }))
-        }
+        }}
+        onMap={() => {
+          setEditorRef(null)
+          setShowMapView((v) => !v)
+        }}
         onSettings={() => setShowSettings(true)}
         onCloseCase={handleCloseCase}
         onExport={() => void handleExport()}
-        notesOpen={editorRef !== null}
+        activeView={editorRef ? 'notes' : showMapView ? 'map' : 'board'}
       />
 
       {editorRef ? (
@@ -902,7 +951,16 @@ function AppInner() {
           />
           {showPlay && (
             <div className="top-0 right-0 bottom-0 z-60 absolute shadow-2xl">
-              <PlayPanel onClose={() => setShowPlay(false)} />
+              <PlayPanel onClose={() => setShowPlay(false)} onSelectNode={handleSelectNodeFromPlay} />
+            </div>
+          )}
+        </div>
+      ) : showMapView ? (
+        <div className="relative flex flex-1 min-h-0 overflow-hidden">
+          <MapView onSelectNode={handleSelectNodeFromMap} />
+          {showPlay && (
+            <div className="top-0 right-0 bottom-0 z-60 absolute shadow-2xl">
+              <PlayPanel onClose={() => setShowPlay(false)} onSelectNode={handleSelectNodeFromPlay} />
             </div>
           )}
         </div>
@@ -970,7 +1028,7 @@ function AppInner() {
             />
           )}
 
-          {showPlay && <PlayPanel onClose={() => setShowPlay(false)} />}
+          {showPlay && <PlayPanel onClose={() => setShowPlay(false)} onSelectNode={handleSelectNodeFromPlay} />}
         </SidebarProvider>
       )}
 

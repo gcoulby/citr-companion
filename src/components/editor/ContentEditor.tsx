@@ -26,6 +26,7 @@ import { useGraphStore } from '../../store/graphStore'
 import { useBacklinksStore } from '../../store/backlinksStore'
 import { useMysteryStore } from '../../store/mysteryStore'
 import { useFileStore } from '../../store/fileStore'
+import { useSettingsStore } from '../../store/settingsStore'
 import {
   contentMap,
   contentDirty,
@@ -76,6 +77,7 @@ interface EditorInnerProps {
 }
 
 function EditorInner({ docId, initialContent }: EditorInnerProps) {
+  const mode = useSettingsStore((s) => s.mode)
   const updateNode = useGraphStore((s) => s.updateNode)
   const setDocMentions = useBacklinksStore((s) => s.setDocMentions)
   const bumpContentRevision = useFileStore((s) => s.bumpContentRevision)
@@ -188,7 +190,7 @@ function EditorInner({ docId, initialContent }: EditorInnerProps) {
   return (
     <BlockNoteView
       editor={editor}
-      theme="dark"
+      theme={mode}
       slashMenu={false}
       style={{ minHeight: '100%' }}
     >

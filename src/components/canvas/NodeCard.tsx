@@ -4,8 +4,9 @@ import { Pencil, FileText, BookOpen, Paperclip, MapPin } from 'lucide-react'
 import { clueCardsOf, type GraphNode } from '../../types'
 import type { Suit } from '../../game/types'
 import { NODE_TYPE_CONFIG } from '../../lib/nodeTypeConfig'
-import { mapTileUrl, pinPercentInTile, pinPercentInImage, resolveMapSource } from '../../lib/locationUtils'
+import { resolveMapSource } from '../../lib/locationUtils'
 import { PlayingCardView } from '../play/PlayingCard'
+import { MiniMap } from './MiniMap'
 import { useMysteryStore } from '../../store/mysteryStore'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useCaseSettingsStore } from '../../store/caseSettingsStore'
@@ -40,7 +41,6 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
   const mapImageWidth = useCaseSettingsStore((s) => s.settings.mapImageWidth)
   const mapImageHeight = useCaseSettingsStore((s) => s.settings.mapImageHeight)
 
-  const TILE_ZOOM = 14
   const mapImageUrl = mapImageAssetId ? getCachedAsset(mapImageAssetId) : undefined
   const mapSource = showMap
     ? resolveMapSource(
@@ -51,19 +51,6 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
           : null,
       )
     : null
-  const tileUrl =
-    mapSource?.kind === 'tile'
-      ? mapTileUrl(node.location!.lat, node.location!.lng, TILE_ZOOM, mapSource)
-      : mapSource?.kind === 'image'
-        ? mapSource.url
-        : null
-  const pinPos =
-    mapSource?.kind === 'tile'
-      ? pinPercentInTile(node.location!.lat, node.location!.lng, TILE_ZOOM)
-      : mapSource?.kind === 'image'
-        ? pinPercentInImage(node.location!.lat, node.location!.lng, mapSource)
-        : null
-  const mapObjectFit = mapSource?.kind === 'image' ? 'contain' : 'cover'
 
   // A clue/truth's literal card is worth a glance, but it isn't a thumbnail —
   // it sits as a small badge next to the title instead of taking over the
@@ -108,25 +95,19 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
       {/* Drawing-pin handle — single port, bidirectional via ConnectionMode.Loose */}
       <Handle type="source" position={Position.Top} id="pin" />
 
-      {/* Feature: map tile with pin */}
-      {showMap && tileUrl && pinPos && (
-        <div className="relative border-border border-b rounded-t w-full h-20 overflow-hidden bg-background">
-          <img src={tileUrl} alt="" className="w-full h-full" style={{ objectFit: mapObjectFit }} />
-          {/* Pin — positioned at the lat/lng within the tile */}
-          <div
-            className="absolute"
-            style={{
-              left: `${pinPos.px}%`,
-              top: `${pinPos.py}%`,
-              transform: 'translate(-50%, -50%)',
-            }}
-          >
-            <MapPin
-              size={14}
-              className="drop-shadow-md text-red-500"
-              fill="#ef4444"
-            />
-          </div>
+      {/* Feature: live, non-interactive Leaflet mini-map centered on the pin —
+          a real map instead of hand-rolled crop math, so the pin is always
+          exactly where Leaflet itself says it is. */}
+      {showMap && mapSource && node.location && (
+        <div
+          className="relative border-border border-b rounded-t w-full h-20 overflow-hidden bg-background"
+          style={{ isolation: 'isolate' }}
+        >
+          <MiniMap location={node.location} mapSource={mapSource} className="w-full h-full" />
+          {/* Overlay guard — the map has all interaction handlers disabled,
+              but this also stops the node card's own drag/click handling
+              from ever reaching into the Leaflet instance. */}
+          <div className="absolute inset-0" />
         </div>
       )}
 

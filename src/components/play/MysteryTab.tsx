@@ -12,7 +12,7 @@ import type { AttributeTestResult, InvestigationRollResult, ConsequenceRollResul
 import { SectionLabel, Badge, SmallButton, TextInput, TextArea, DiceRoller } from './ui';
 import { PlayingCardView } from './PlayingCard';
 import { ClueTable } from './ClueTable';
-import { Pencil, Dices } from 'lucide-react';
+import { Pencil, Dices, ArrowUpRight } from 'lucide-react';
 import { rollOracleTable, MOTIVATION_TABLE, TREACHERY_TABLE } from '../../game/oracles';
 import { GENRE_TABLES } from '../../game/genreTables';
 
@@ -136,7 +136,11 @@ function Clock({ marks, onSet }: { marks: number; onSet: (marks: number) => void
   );
 }
 
-export function MysteryTab() {
+interface MysteryTabProps {
+  onSelectNode?: (nodeId: string) => void;
+}
+
+export function MysteryTab({ onSelectNode }: MysteryTabProps) {
   const m = useMysteryStore();
   const inv = useInvestigatorStore();
   const addNode = useGraphStore((s) => s.addNode);
@@ -531,13 +535,27 @@ export function MysteryTab() {
                       <Dices size={11} />
                     </button>
                   </div>
-                  <TextArea rows={2} value={cs.description} placeholder="What is this clue?"
+                  {/* Free scratch notes, independent of the board node's own
+                      text once one exists — editing here never overwrites
+                      it, so there's a single place ("Edit clue" below) that
+                      owns the node's real content instead of two drifting
+                      copies. */}
+                  <TextArea rows={2} value={cs.description}
+                    placeholder={cs.boardNodeId ? 'Quick notes (not shown on the node)…' : 'What is this clue?'}
                     onChange={(e) => m.setClueDescription(cs.rank, e.target.value)}
                     className="text-[11px]" />
                 </div>
               </div>
               {cs.boardNodeId ? (
-                <Badge tone="green">on board</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge tone="green">on board</Badge>
+                  <button
+                    onClick={() => cs.boardNodeId && onSelectNode?.(cs.boardNodeId)}
+                    className="flex items-center gap-0.5 text-[11px] text-primary hover:underline"
+                  >
+                    Edit clue <ArrowUpRight size={11} />
+                  </button>
+                </div>
               ) : (
                 <SmallButton onClick={() => handleAddClueToBoard(cs.rank)}>Add to board</SmallButton>
               )}
