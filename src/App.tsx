@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, lazy, Suspense } from 'react'
 import { useGraphStore } from './store/graphStore'
 import { useCanvasStore } from './store/canvasStore'
 import { useFileStore } from './store/fileStore'
@@ -47,7 +47,12 @@ import { FileExplorer } from './components/dialogs/FileExplorer'
 import { ContentEditor } from './components/editor/ContentEditor'
 import { CaseBoard } from './components/canvas/CaseBoard'
 import { MapView } from './components/canvas/MapView'
-import { PdfView } from './components/pdf/PdfView'
+// Lazy-loaded: pdfjs-dist is a large library targeting fairly modern JS
+// engines — keeping it out of the main bundle means it's only parsed/
+// evaluated once someone actually opens PDF View, not on every app launch.
+const PdfView = lazy(() =>
+  import('./components/pdf/PdfView').then((m) => ({ default: m.PdfView })),
+)
 import {
   ContextMenu,
   type ContextMenuItem,
@@ -1005,7 +1010,15 @@ function AppInner() {
         </div>
       ) : showPdfView ? (
         <div className="relative flex flex-1 min-h-0 overflow-hidden">
-          <PdfView />
+          <Suspense
+            fallback={
+              <div className="flex justify-center items-center w-full h-full text-muted-foreground text-sm">
+                Loading PDF View…
+              </div>
+            }
+          >
+            <PdfView />
+          </Suspense>
           {showPlay && (
             <div className="top-0 right-0 bottom-0 z-60 absolute shadow-2xl">
               <PlayPanel
