@@ -108,9 +108,11 @@ export async function readCitr(file: File | Blob): Promise<CitrData> {
     })
   );
 
-  // settings.json is a reserved slot for future app-level preferences; nothing
-  // to merge in yet.
-  const settings: CaseSettings = { ...DEFAULT_CASE_SETTINGS };
+  const settingsRaw = await zip.file('settings.json')?.async('string');
+  const settings: CaseSettings = {
+    ...DEFAULT_CASE_SETTINGS,
+    ...(settingsRaw ? (JSON.parse(settingsRaw) as Partial<CaseSettings>) : {}),
+  };
 
   const investigatorRaw = await zip.file('investigator.json')?.async('string');
   const investigator: Investigator = investigatorRaw

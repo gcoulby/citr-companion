@@ -126,9 +126,16 @@ export interface CaseManifest {
   modified: string;
 }
 
-// Reserved for future app-level preferences (e.g. a default genre for
-// oracle tables). Empty for now — kept so the file format has a stable slot.
-export type CaseSettings = Record<string, never>;
+// Per-case settings, stored in settings.json inside the .citr file (unlike
+// the device-level display prefs in settingsStore, which live in localStorage).
+export interface CaseSettings {
+  /** Asset id (under assets/) of the custom single-image map, when the map
+   *  style is set to 'image'. Its own natural pixel size, needed to size the
+   *  Leaflet image overlay and to convert node pin coordinates to percentages. */
+  mapImageAssetId?: string;
+  mapImageWidth?: number;
+  mapImageHeight?: number;
+}
 
 export const DEFAULT_CASE_SETTINGS: CaseSettings = {};
 

@@ -5,6 +5,7 @@ import { useFileStore } from './store/fileStore'
 import { useInvestigatorStore } from './store/investigatorStore'
 import { useMysteryStore } from './store/mysteryStore'
 import { useBacklinksStore } from './store/backlinksStore'
+import { useCaseSettingsStore } from './store/caseSettingsStore'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useSettingsStore } from './store/settingsStore'
 import { Button } from './components/ui/button'
@@ -417,6 +418,7 @@ function AppInner() {
       loadCanvas(data.positions, data.viewport, data.layout)
       loadInvestigator(data.investigator)
       loadMystery(data.mystery)
+      useCaseSettingsStore.getState().load(data.settings)
       ingestAssets(data.assets)
       useBacklinksStore.getState().seed(data.backlinks)
       setSaveStatus('saved')
@@ -579,6 +581,7 @@ function AppInner() {
         loadCanvas({}, { x: 0, y: 0, zoom: 1 }, 'freeform')
         resetInvestigator()
         resetMystery()
+        useCaseSettingsStore.getState().reset()
         const investigator = useInvestigatorStore.getState()
         const mystery = useMysteryStore.getState()
         const blob = await writeCitr({
@@ -650,6 +653,7 @@ function AppInner() {
     setEditorRef(null)
     useFileStore.getState().reset()
     useBacklinksStore.getState().reset()
+    useCaseSettingsStore.getState().reset()
     refreshCases()
   }, [refreshCases])
 

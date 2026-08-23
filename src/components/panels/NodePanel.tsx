@@ -11,6 +11,7 @@ import { NODE_TYPE_CONFIG, ALL_NODE_TYPES } from '../../lib/nodeTypeConfig';
 import { LocationPickerDialog } from '../dialogs/LocationPickerDialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { TagInput } from '../ui/tag-input';
 import { Textarea } from '../ui/textarea';
 import { PlayingCardView } from '../play/PlayingCard';
 import type { NodeAttachment, DocumentRef } from '../../types';
@@ -47,7 +48,6 @@ export function NodePanel({ nodeId, onClose, onOpenDocument }: Props) {
   const liveClueSet = useMysteryStore((s) => (node?.clue ? s.clueSets[node.clue.rank] : undefined));
   const backlinks = useBacklinksStore((s) => s.index[nodeId] ?? EMPTY_BACKLINKS);
 
-  const [newTag, setNewTag] = useState('');
   const [newPropKey, setNewPropKey] = useState('');
   const [newPropVal, setNewPropVal] = useState('');
   const [imgDragOver, setImgDragOver] = useState(false);
@@ -388,28 +388,13 @@ export function NodePanel({ nodeId, onClose, onOpenDocument }: Props) {
           {/* Tags */}
           <div>
             <SectionLabel>Tags</SectionLabel>
-            <div className="flex flex-wrap gap-1 mb-2">
-              {node.tags.map((tag) => (
-                <span key={tag} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-                  {tag}
-                  <button onClick={() => updateNode(nodeId, { tags: node.tags.filter((t) => t !== tag) })}
-                    className="hover:text-red-400 transition-colors"><X size={9} /></button>
-                </span>
-              ))}
-            </div>
-            <Input value={newTag} list="tag-suggestions" placeholder="Add tag and press Enter…"
-              onChange={(e) => setNewTag(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && newTag.trim()) {
-                  if (!node.tags.includes(newTag.trim())) updateNode(nodeId, { tags: [...node.tags, newTag.trim()] });
-                  setNewTag('');
-                }
-              }}
-              className="h-7 text-xs"
+            <TagInput
+              tags={node.tags}
+              suggestions={allTags}
+              placeholder="Add tag and press Enter…"
+              onAdd={(tag) => updateNode(nodeId, { tags: [...node.tags, tag] })}
+              onRemove={(tag) => updateNode(nodeId, { tags: node.tags.filter((t) => t !== tag) })}
             />
-            <datalist id="tag-suggestions">
-              {allTags.filter((t) => !node.tags.includes(t)).map((t) => <option key={t} value={t} />)}
-            </datalist>
           </div>
 
           {/* Properties */}

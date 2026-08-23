@@ -27,6 +27,12 @@ import { getCachedAsset } from '../../lib/assetCache'
 const nodeTypes: NodeTypes = { nodeCard: NodeCard as NodeTypes[string] }
 const edgeTypes: EdgeTypes = { edgeLine: EdgeLine as EdgeTypes[string] }
 
+function fallbackPosition(id: string): { x: number; y: number } {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
+  return { x: Math.abs(h % 600), y: Math.abs((h >> 8) % 400) }
+}
+
 import type { NodeType } from '../../types'
 
 interface CaseBoardInnerProps {
@@ -82,7 +88,12 @@ function CaseBoardInner({
       Object.values(graphNodes).map((n) => ({
         id: n.id,
         type: 'nodeCard',
-        position: positions[n.id] ?? { x: Math.random() * 600, y: Math.random() * 400 },
+        // A node without a stored position (not yet dragged) falls back to a
+        // spot derived deterministically from its id — stable across
+        // re-renders, unlike Math.random() which reshuffled every node
+        // lacking a position on every render, making freshly created nodes
+        // appear to jitter/"bug out" until each was manually dragged once.
+        position: positions[n.id] ?? fallbackPosition(n.id),
         data: {
           node: n,
           thumbnailUrl: n.thumbnail ? getCachedAsset(n.thumbnail) : undefined,

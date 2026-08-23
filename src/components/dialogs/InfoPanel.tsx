@@ -1,13 +1,7 @@
 import { Shield, Lock, Keyboard, FileArchive, Layers } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '../ui/dialog'
+import { DialogTitle } from '../ui/dialog'
 import { Button } from '../ui/button'
-import { ScrollArea } from '../ui/scroll-area'
+import { DialogShell } from '../ui/dialog-shell'
 
 interface Props {
   onClose: () => void
@@ -55,28 +49,27 @@ function KbRow({ keys, action }: { keys: string[]; action: string }) {
 
 export function InfoPanel({ onClose }: Props) {
   return (
-    <Dialog
+    <DialogShell
       open
       onOpenChange={(open) => {
         if (!open) onClose()
       }}
-    >
-      <DialogContent className="flex flex-col gap-0 p-0 sm:max-w-150 max-h-[85dvh] overflow-hidden">
-        <DialogHeader className="px-6 py-4 border-border border-b">
-          <DialogTitle className="flex items-center gap-3">
-            <Shield size={18} className="text-primary" />
-            <div>
-              <div className="font-display text-foreground text-sm">
-                Caught in the Rain
-              </div>
-              <div className="font-mono font-normal text-[10px] text-muted-foreground">
-                Companion Case Board · v1.0
-              </div>
+      className="sm:max-w-150"
+      header={
+        <DialogTitle className="flex items-center gap-3">
+          <Shield size={18} className="text-primary" />
+          <div>
+            <div className="font-display text-foreground text-sm">
+              Caught in the Rain
             </div>
-          </DialogTitle>
-        </DialogHeader>
-        <div className="max-h-[65dvh] overflow-hidden">
-          <ScrollArea className="flex-1 px-6 py-5 min-h-0 max-h-[65dvh]">
+            <div className="font-mono font-normal text-[10px] text-muted-foreground">
+              Companion Case Board · v1.0
+            </div>
+          </div>
+        </DialogTitle>
+      }
+      footer={<Button onClick={onClose}>Close</Button>}
+    >
             <Section icon={<Layers size={14} />} title="What is this?">
               <p className="text-[12px] text-muted-foreground leading-relaxed">
                 A companion app for{' '}
@@ -227,13 +220,6 @@ export function InfoPanel({ onClose }: Props) {
                 own mystery.
               </p>
             </Section>
-          </ScrollArea>
-        </div>
-
-        <DialogFooter className="sm:justify-center px-6 py-3 pb-6 border-border border-t">
-          <Button onClick={onClose}>Close</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </DialogShell>
   )
 }

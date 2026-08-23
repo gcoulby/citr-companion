@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMysteryStore, type ClueDrawResult } from '../../store/mysteryStore';
 import { useInvestigatorStore } from '../../store/investigatorStore';
 import { useGraphStore } from '../../store/graphStore';
+import { useCanvasStore } from '../../store/canvasStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import {
   ATTRIBUTES, CLUE_RANKS, SUITS,
@@ -180,7 +181,8 @@ export function MysteryTab() {
   };
 
   const handleCreateProblemNodes = () => {
-    addNode({
+    const setPosition = useCanvasStore.getState().setPosition;
+    const locationNode = addNode({
       label: m.problem.location,
       summary: '',
       tags: [],
@@ -188,7 +190,7 @@ export function MysteryTab() {
       properties: {},
       nodeType: 'location',
     });
-    addNode({
+    const objectNode = addNode({
       label: m.problem.object,
       summary: '',
       tags: [],
@@ -196,7 +198,7 @@ export function MysteryTab() {
       properties: {},
       nodeType: 'object',
     });
-    addNode({
+    const treacheryNode = addNode({
       // "Treachery" is the game's term for what happened to the object —
       // there's no dedicated node type for it, so it's tagged as an event.
       label: m.problem.treachery,
@@ -206,6 +208,12 @@ export function MysteryTab() {
       properties: {},
       nodeType: 'event',
     });
+    // Lay the three out in a row rather than leaving them at their default
+    // fallback spot — without this they'd all land near each other and look
+    // stuck together until dragged apart individually.
+    setPosition(locationNode.id, { x: 0, y: 0 });
+    setPosition(objectNode.id, { x: 260, y: 0 });
+    setPosition(treacheryNode.id, { x: 520, y: 0 });
     setProblemNodesAdded(true);
   };
 

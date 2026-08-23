@@ -6,8 +6,10 @@ import type { NodeLocation } from '../../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { resolveTileSource } from '../../lib/locationUtils';
+import { resolveMapSource } from '../../lib/locationUtils';
 import { useSettingsStore } from '../../store/settingsStore';
+import { useCaseSettingsStore } from '../../store/caseSettingsStore';
+import { getCachedAsset } from '../../lib/assetCache';
 
 interface Props {
   initial?: NodeLocation;
@@ -36,6 +38,20 @@ export function LocationPickerDialog({ initial, onConfirm, onClose }: Props) {
   const [searching, setSearching] = useState(false);
   const [searchErr, setSearchErr] = useState('');
 
+  const mapStyle = useSettingsStore((s) => s.mapStyle);
+  const customMapUrl = useSettingsStore((s) => s.customMapUrl);
+  const mapImageAssetId = useCaseSettingsStore((s) => s.settings.mapImageAssetId);
+  const mapImageWidth = useCaseSettingsStore((s) => s.settings.mapImageWidth);
+  const mapImageHeight = useCaseSettingsStore((s) => s.settings.mapImageHeight);
+  const mapImageUrl = mapImageAssetId ? getCachedAsset(mapImageAssetId) : undefined;
+  const mapSource = resolveMapSource(
+    mapStyle,
+    customMapUrl,
+    mapImageUrl && mapImageWidth && mapImageHeight
+      ? { url: mapImageUrl, width: mapImageWidth, height: mapImageHeight }
+      : null,
+  );
+
   // A callback ref (not an object ref + useEffect) so the map initialises
   // the moment the div actually attaches — Radix's Dialog content can
   // remount its children a couple of times while its open/animation state
@@ -50,17 +66,42 @@ export function LocationPickerDialog({ initial, onConfirm, onClose }: Props) {
       }
       if (!el) return;
 
-      const center: L.LatLngTuple = initial ? [initial.lat, initial.lng] : [20, 0];
-      const zoom = initial ? 14 : 2;
-      const map = L.map(el, { center, zoom });
-
       const { mapStyle, customMapUrl } = useSettingsStore.getState();
-      const tileSource = resolveTileSource(mapStyle, customMapUrl);
-      L.tileLayer(tileSource.urlTemplate, {
-        attribution: tileSource.attribution,
-        subdomains: tileSource.subdomains,
-        detectRetina: true,
-      }).addTo(map);
+      const { mapImageAssetId, mapImageWidth, mapImageHeight } = useCaseSettingsStore.getState().settings;
+      const mapImageUrl = mapImageAssetId ? getCachedAsset(mapImageAssetId) : undefined;
+      const source = resolveMapSource(
+        mapStyle,
+        customMapUrl,
+        mapImageUrl && mapImageWidth && mapImageHeight
+          ? { url: mapImageUrl, width: mapImageWidth, height: mapImageHeight }
+          : null,
+      );
+      if (!source) return; // 'image' style with no image uploaded yet — nothing to render
+
+      let map: L.Map;
+      // Leaflet's own attribution control bakes a Ukrainian-flag emoji into
+      // its default "Leaflet" branding link, independent of whatever tile
+      // provider is in use — the earlier switch away from OSM's tile server
+      // didn't touch this, since it comes from Leaflet itself, not the tiles.
+      const attributionPrefix = '<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>';
+      if (source.kind === 'image') {
+        // CRS.Simple treats the image as a flat pixel grid instead of a
+        // real-world projection — markers use [y, x] pixel coordinates.
+        map = L.map(el, { crs: L.CRS.Simple, center: [0, 0], zoom: 0 });
+        const bounds: L.LatLngBoundsExpression = [[0, 0], [source.height, source.width]];
+        L.imageOverlay(source.url, bounds).addTo(map);
+        map.fitBounds(bounds);
+      } else {
+        const center: L.LatLngTuple = initial ? [initial.lat, initial.lng] : [20, 0];
+        const zoom = initial ? 14 : 2;
+        map = L.map(el, { center, zoom });
+        L.tileLayer(source.urlTemplate, {
+          attribution: source.attribution,
+          subdomains: source.subdomains,
+          detectRetina: true,
+        }).addTo(map);
+      }
+      map.attributionControl.setPrefix(attributionPrefix);
 
       // Place initial marker
       if (initial) {
@@ -151,20 +192,22 @@ export function LocationPickerDialog({ initial, onConfirm, onClose }: Props) {
           </DialogTitle>
         </DialogHeader>
 
-        {/* Search */}
-        <div className="flex gap-2 px-4 py-2.5 border-b border-border/60 shrink-0">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') void handleSearch(); }}
-            placeholder="Search for a place…"
-            className="flex-1"
-          />
-          <Button variant="outline" size="sm" onClick={() => void handleSearch()} disabled={searching}>
-            <Search size={12} />
-            {searching ? 'Searching…' : 'Search'}
-          </Button>
-        </div>
+        {/* Search — doesn't apply to a fictional single-image map */}
+        {mapStyle !== 'image' && (
+          <div className="flex gap-2 px-4 py-2.5 border-b border-border/60 shrink-0">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void handleSearch(); }}
+              placeholder="Search for a place…"
+              className="flex-1"
+            />
+            <Button variant="outline" size="sm" onClick={() => void handleSearch()} disabled={searching}>
+              <Search size={12} />
+              {searching ? 'Searching…' : 'Search'}
+            </Button>
+          </div>
+        )}
 
         {searchErr && (
           <div className="px-4 py-1.5 text-xs text-destructive border-b border-border/60 shrink-0">{searchErr}</div>
@@ -172,7 +215,15 @@ export function LocationPickerDialog({ initial, onConfirm, onClose }: Props) {
 
         {/* Map — isolation: isolate keeps Leaflet's high z-index controls inside this stacking ctx */}
         <div className="flex-1 min-h-0" style={{ isolation: 'isolate' }}>
-          <div ref={mapDivRef} className="w-full h-full" />
+          {mapSource ? (
+            <div ref={mapDivRef} className="w-full h-full" />
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-1 w-full h-full text-center px-6 text-muted-foreground">
+              <MapPin size={20} className="text-muted-foreground/50 mb-1" />
+              <span className="text-[12px]">No map image set for this case yet.</span>
+              <span className="text-[11px] text-muted-foreground/70">Upload one in Settings → Map.</span>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

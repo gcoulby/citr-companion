@@ -4,10 +4,12 @@ import { Pencil, FileText, BookOpen, Paperclip, MapPin } from 'lucide-react'
 import { clueCardsOf, type GraphNode } from '../../types'
 import type { Suit } from '../../game/types'
 import { NODE_TYPE_CONFIG } from '../../lib/nodeTypeConfig'
-import { mapTileUrl, pinPercentInTile, resolveTileSource } from '../../lib/locationUtils'
+import { mapTileUrl, pinPercentInTile, pinPercentInImage, resolveMapSource } from '../../lib/locationUtils'
 import { PlayingCardView } from '../play/PlayingCard'
 import { useMysteryStore } from '../../store/mysteryStore'
 import { useSettingsStore } from '../../store/settingsStore'
+import { useCaseSettingsStore } from '../../store/caseSettingsStore'
+import { getCachedAsset } from '../../lib/assetCache'
 
 const THREAT_LEVEL_LABEL: Record<1 | 2 | 3, string> = {
   1: 'Level 1',
@@ -34,14 +36,34 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
 
   const mapStyle = useSettingsStore((s) => s.mapStyle)
   const customMapUrl = useSettingsStore((s) => s.customMapUrl)
+  const mapImageAssetId = useCaseSettingsStore((s) => s.settings.mapImageAssetId)
+  const mapImageWidth = useCaseSettingsStore((s) => s.settings.mapImageWidth)
+  const mapImageHeight = useCaseSettingsStore((s) => s.settings.mapImageHeight)
 
   const TILE_ZOOM = 14
-  const tileUrl = showMap
-    ? mapTileUrl(node.location!.lat, node.location!.lng, TILE_ZOOM, resolveTileSource(mapStyle, customMapUrl))
+  const mapImageUrl = mapImageAssetId ? getCachedAsset(mapImageAssetId) : undefined
+  const mapSource = showMap
+    ? resolveMapSource(
+        mapStyle,
+        customMapUrl,
+        mapImageUrl && mapImageWidth && mapImageHeight
+          ? { url: mapImageUrl, width: mapImageWidth, height: mapImageHeight }
+          : null,
+      )
     : null
-  const pinPos = showMap
-    ? pinPercentInTile(node.location!.lat, node.location!.lng, TILE_ZOOM)
-    : null
+  const tileUrl =
+    mapSource?.kind === 'tile'
+      ? mapTileUrl(node.location!.lat, node.location!.lng, TILE_ZOOM, mapSource)
+      : mapSource?.kind === 'image'
+        ? mapSource.url
+        : null
+  const pinPos =
+    mapSource?.kind === 'tile'
+      ? pinPercentInTile(node.location!.lat, node.location!.lng, TILE_ZOOM)
+      : mapSource?.kind === 'image'
+        ? pinPercentInImage(node.location!.lat, node.location!.lng, mapSource)
+        : null
+  const mapObjectFit = mapSource?.kind === 'image' ? 'contain' : 'cover'
 
   // A clue/truth's literal card is worth a glance, but it isn't a thumbnail —
   // it sits as a small badge next to the title instead of taking over the
@@ -88,8 +110,8 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
 
       {/* Feature: map tile with pin */}
       {showMap && tileUrl && pinPos && (
-        <div className="relative border-border border-b rounded-t w-full h-20 overflow-hidden">
-          <img src={tileUrl} alt="" className="w-full h-full object-cover" />
+        <div className="relative border-border border-b rounded-t w-full h-20 overflow-hidden bg-background">
+          <img src={tileUrl} alt="" className="w-full h-full" style={{ objectFit: mapObjectFit }} />
           {/* Pin — positioned at the lat/lng within the tile */}
           <div
             className="absolute"

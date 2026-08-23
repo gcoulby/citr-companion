@@ -1,10 +1,17 @@
-import { Moon, Sun, Check, Clock4, Database, Map as MapIcon } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
-import { ScrollArea } from '../ui/scroll-area';
+import { useRef } from 'react';
+import { Moon, Sun, Check, Clock4, Database, Map as MapIcon, Upload, X } from 'lucide-react';
+import { nanoid } from 'nanoid';
+import { DialogTitle, DialogDescription } from '../ui/dialog';
+import { DialogShell } from '../ui/dialog-shell';
 import { Switch } from '../ui/switch';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
+import { Button } from '../ui/button';
 import { useSettingsStore, GENRES, MAP_STYLES, type Genre, type MapStyle } from '../../store/settingsStore';
+import { useCaseSettingsStore } from '../../store/caseSettingsStore';
+import { assetMap } from '../../hooks/useAutoSave';
+import { cacheAsset, getCachedAsset } from '../../lib/assetCache';
+import { mimeFromExt } from '../../lib/mime';
 import { hasFileSystemAccess } from '../../file/fileHandle';
 
 const MAP_STYLE_LABEL: Record<MapStyle, string> = {
@@ -12,7 +19,17 @@ const MAP_STYLE_LABEL: Record<MapStyle, string> = {
   light: 'Light',
   osm: 'OSM Standard',
   custom: 'Custom',
+  image: 'Image',
 };
+
+function imageDimensions(url: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = reject;
+    img.src = url;
+  });
+}
 
 const GENRE_LABEL: Record<Genre, string> = {
   noir: 'Noir',
@@ -46,17 +63,49 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
   const setMapStyle = useSettingsStore((s) => s.setMapStyle);
   const customMapUrl = useSettingsStore((s) => s.customMapUrl);
   const setCustomMapUrl = useSettingsStore((s) => s.setCustomMapUrl);
+  const mapImageAssetId = useCaseSettingsStore((s) => s.settings.mapImageAssetId);
+  const setMapImage = useCaseSettingsStore((s) => s.setMapImage);
+  const clearMapImage = useCaseSettingsStore((s) => s.clearMapImage);
+  const mapImageInputRef = useRef<HTMLInputElement | null>(null);
+  const mapImagePreviewUrl = mapImageAssetId ? getCachedAsset(mapImageAssetId) : undefined;
+
+  const handleMapImageFile = async (file: File) => {
+    const ext = file.name.split('.').pop() ?? 'bin';
+    const mimeType = file.type || mimeFromExt(ext);
+    const buffer = await file.arrayBuffer();
+    const probeUrl = URL.createObjectURL(new Blob([buffer], { type: mimeType }));
+    try {
+      const { width, height } = await imageDimensions(probeUrl);
+      if (mapImageAssetId) assetMap.delete(mapImageAssetId);
+      const assetId = `map-${nanoid()}.${ext}`;
+      assetMap.set(assetId, buffer);
+      cacheAsset(assetId, buffer, mimeType);
+      setMapImage(assetId, width, height);
+    } catch {
+      // Not a decodable image — ignore the upload
+    } finally {
+      URL.revokeObjectURL(probeUrl);
+    }
+  };
+
+  const handleClearMapImage = () => {
+    if (mapImageAssetId) assetMap.delete(mapImageAssetId);
+    clearMapImage();
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[85dvh] flex flex-col overflow-hidden">
-        <DialogHeader>
+    <DialogShell
+      open={open}
+      onOpenChange={onOpenChange}
+      className="sm:max-w-md"
+      header={
+        <>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>Theme preferences, stored on this device only.</DialogDescription>
-        </DialogHeader>
-
-        <ScrollArea className="flex-1 min-h-0 max-h-[60dvh] -mx-1 px-1">
-        <div className="space-y-4 pb-1">
+        </>
+      }
+    >
+        <div className="space-y-4">
           <div>
             <Label className="mb-2 block text-xs uppercase tracking-wider text-muted-foreground font-mono">Genre</Label>
             <div className="grid grid-cols-2 gap-2">
@@ -110,7 +159,7 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
             <div className="rounded-lg border border-border px-3 py-2.5 space-y-2.5">
               <div className="flex items-center gap-2">
                 <MapIcon size={14} className="text-muted-foreground" />
-                <Label className="text-sm">Tile source</Label>
+                <Label className="text-sm">Map source</Label>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {MAP_STYLES.map((style) => (
@@ -139,6 +188,41 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
                   </div>
                 </div>
               )}
+              {mapStyle === 'image' && (
+                <div className="space-y-2">
+                  <div className="text-[11px] text-muted-foreground">
+                    A single image used as the map instead of real-world tiles — for a fictional or
+                    hand-drawn game-world location. Stored in this case file.
+                  </div>
+                  {mapImagePreviewUrl ? (
+                    <div className="relative overflow-hidden rounded-md border border-border">
+                      <img src={mapImagePreviewUrl} alt="" className="max-h-32 w-full object-contain bg-background" />
+                      <button
+                        onClick={handleClearMapImage}
+                        className="absolute top-1 right-1 rounded-full bg-background/80 p-1 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Remove map image"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ) : null}
+                  <input
+                    ref={mapImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void handleMapImageFile(file);
+                      e.target.value = '';
+                    }}
+                  />
+                  <Button variant="outline" size="sm" onClick={() => mapImageInputRef.current?.click()}>
+                    <Upload size={12} />
+                    {mapImagePreviewUrl ? 'Replace image' : 'Upload image'}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -158,8 +242,6 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
             </div>
           )}
         </div>
-        </ScrollArea>
-      </DialogContent>
-    </Dialog>
+    </DialogShell>
   );
 }
