@@ -21,6 +21,7 @@ import {
   Dices,
   Search,
 } from 'lucide-react'
+import { nanoid } from 'nanoid'
 import { useGraphStore } from '../../store/graphStore'
 import { useBacklinksStore } from '../../store/backlinksStore'
 import { useMysteryStore } from '../../store/mysteryStore'
@@ -29,6 +30,7 @@ import {
   contentMap,
   contentDirty,
   getCurrentFileBlob,
+  assetMap,
 } from '../../hooks/useAutoSave'
 import { loadNodeContent } from '../../file/citrReader'
 import { citrSchema } from './blockSchema'
@@ -36,6 +38,34 @@ import { CompactSuggestionMenu } from './CompactSuggestionMenu'
 import { captureSnapshot } from './blocks/snapshotBlock'
 import { NODE_TYPE_CONFIG } from '../../lib/nodeTypeConfig'
 import { CASE_NOTES_ID, documentRefToId, type DocumentRef } from '../../types'
+import { cacheAsset, getCachedAsset } from '../../lib/assetCache'
+import { mimeFromExt } from '../../lib/mime'
+
+// Media blocks (image/video/audio/file) store this custom-scheme URL in the
+// document's own JSON instead of a blob: URL — blob URLs are only valid for
+// the tab that created them, so they'd break on reload. `resolveFileUrl`
+// below turns this back into a fresh blob URL each time the editor renders.
+const ASSET_SCHEME = 'citr-asset:'
+
+async function uploadFile(file: File): Promise<string> {
+  const ext = file.name.split('.').pop() ?? 'bin'
+  const assetId = `${nanoid()}.${ext}`
+  const buffer = await file.arrayBuffer()
+  assetMap.set(assetId, buffer)
+  cacheAsset(assetId, buffer, file.type || mimeFromExt(ext))
+  return `${ASSET_SCHEME}${assetId}`
+}
+
+async function resolveFileUrl(url: string): Promise<string> {
+  if (!url.startsWith(ASSET_SCHEME)) return url
+  const assetId = url.slice(ASSET_SCHEME.length)
+  const cached = getCachedAsset(assetId)
+  if (cached) return cached
+  const buffer = assetMap.get(assetId)
+  if (!buffer) return url
+  const ext = assetId.split('.').pop() ?? ''
+  return cacheAsset(assetId, buffer, mimeFromExt(ext))
+}
 
 // ── Inner editor — rendered only once content is ready ────────────────────────
 
@@ -52,6 +82,8 @@ function EditorInner({ docId, initialContent }: EditorInnerProps) {
   const editor = useCreateBlockNote({
     schema: citrSchema,
     initialContent: initialContent?.length ? initialContent : undefined,
+    uploadFile,
+    resolveFileUrl,
   })
 
   // Persist content to contentMap on every change, and keep the backlinks

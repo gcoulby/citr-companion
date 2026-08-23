@@ -4,18 +4,7 @@ import { DEFAULT_CASE_SETTINGS, CASE_NOTES_ID } from '../types';
 import type { Investigator, Mystery } from '../game/types';
 import { deobfuscate } from '../lib/obfuscate';
 import { extractMentionedNodeIds } from '../lib/backlinks';
-
-function mimeFromExt(ext: string): string {
-  switch (ext.toLowerCase()) {
-    case 'png':  return 'image/png';
-    case 'jpg':
-    case 'jpeg': return 'image/jpeg';
-    case 'gif':  return 'image/gif';
-    case 'webp': return 'image/webp';
-    case 'pdf':  return 'application/pdf';
-    default:     return 'application/octet-stream';
-  }
-}
+import { mimeFromExt } from '../lib/mime';
 
 export interface LoadedAsset {
   buffer: ArrayBuffer;

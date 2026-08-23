@@ -6,6 +6,8 @@ import type { NodeLocation } from '../../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { resolveTileSource } from '../../lib/locationUtils';
+import { useSettingsStore } from '../../store/settingsStore';
 
 interface Props {
   initial?: NodeLocation;
@@ -52,9 +54,12 @@ export function LocationPickerDialog({ initial, onConfirm, onClose }: Props) {
       const zoom = initial ? 14 : 2;
       const map = L.map(el, { center, zoom });
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        subdomains: ['a', 'b', 'c'],
+      const { mapStyle, customMapUrl } = useSettingsStore.getState();
+      const tileSource = resolveTileSource(mapStyle, customMapUrl);
+      L.tileLayer(tileSource.urlTemplate, {
+        attribution: tileSource.attribution,
+        subdomains: tileSource.subdomains,
+        detectRetina: true,
       }).addTo(map);
 
       // Place initial marker

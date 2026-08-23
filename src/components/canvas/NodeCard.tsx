@@ -4,9 +4,10 @@ import { Pencil, FileText, BookOpen, Paperclip, MapPin } from 'lucide-react'
 import { clueCardsOf, type GraphNode } from '../../types'
 import type { Suit } from '../../game/types'
 import { NODE_TYPE_CONFIG } from '../../lib/nodeTypeConfig'
-import { osmTileUrl, pinPercentInTile } from '../../lib/locationUtils'
+import { mapTileUrl, pinPercentInTile, resolveTileSource } from '../../lib/locationUtils'
 import { PlayingCardView } from '../play/PlayingCard'
 import { useMysteryStore } from '../../store/mysteryStore'
+import { useSettingsStore } from '../../store/settingsStore'
 
 const THREAT_LEVEL_LABEL: Record<1 | 2 | 3, string> = {
   1: 'Level 1',
@@ -31,9 +32,12 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
     hasMap && (node.featureDisplay === 'map' || (!thumbnailUrl && hasMap))
   const showImg = Boolean(thumbnailUrl) && !showMap
 
+  const mapStyle = useSettingsStore((s) => s.mapStyle)
+  const customMapUrl = useSettingsStore((s) => s.customMapUrl)
+
   const TILE_ZOOM = 14
   const tileUrl = showMap
-    ? osmTileUrl(node.location!.lat, node.location!.lng, TILE_ZOOM)
+    ? mapTileUrl(node.location!.lat, node.location!.lng, TILE_ZOOM, resolveTileSource(mapStyle, customMapUrl))
     : null
   const pinPos = showMap
     ? pinPercentInTile(node.location!.lat, node.location!.lng, TILE_ZOOM)

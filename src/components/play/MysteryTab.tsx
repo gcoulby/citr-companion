@@ -154,6 +154,7 @@ export function MysteryTab() {
   const [newDayNotice, setNewDayNotice] = useState(false);
   const [restNotice, setRestNotice] = useState<number | null>(null);
   const [editingProblem, setEditingProblem] = useState(false);
+  const [problemNodesAdded, setProblemNodesAdded] = useState(false);
   const [editingThreatId, setEditingThreatId] = useState<string | null>(null);
   const [clueDrawnForTest, setClueDrawnForTest] = useState(false);
   const autoAdvanceDay = useSettingsStore((s) => s.automations.autoAdvanceDay);
@@ -176,6 +177,36 @@ export function MysteryTab() {
     const result: ClueDrawResult = m.drawClueCardManual(rank, suit);
     if (result.kind === 'jokerChoice') setJokerChoice(result.candidateClueSetIds);
     setClueDrawnForTest(true);
+  };
+
+  const handleCreateProblemNodes = () => {
+    addNode({
+      label: m.problem.location,
+      summary: '',
+      tags: [],
+      hasContent: false,
+      properties: {},
+      nodeType: 'location',
+    });
+    addNode({
+      label: m.problem.object,
+      summary: '',
+      tags: [],
+      hasContent: false,
+      properties: {},
+      nodeType: 'object',
+    });
+    addNode({
+      // "Treachery" is the game's term for what happened to the object —
+      // there's no dedicated node type for it, so it's tagged as an event.
+      label: m.problem.treachery,
+      summary: '',
+      tags: [],
+      hasContent: false,
+      properties: {},
+      nodeType: 'event',
+    });
+    setProblemNodesAdded(true);
   };
 
   const handleAddClueToBoard = (rank: string) => {
@@ -260,6 +291,13 @@ export function MysteryTab() {
             >
               <Pencil size={11} />
             </button>
+            {(m.problem.location || m.problem.object || m.problem.treachery) && (
+              <div className="mt-2">
+                <SmallButton onClick={handleCreateProblemNodes}>
+                  {problemNodesAdded ? 'Add nodes again' : 'Add as nodes'}
+                </SmallButton>
+              </div>
+            )}
           </div>
         )}
       </div>

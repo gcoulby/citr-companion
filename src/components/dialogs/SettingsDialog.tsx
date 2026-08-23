@@ -1,10 +1,18 @@
-import { Moon, Sun, Check, Clock4, Database } from 'lucide-react';
+import { Moon, Sun, Check, Clock4, Database, Map as MapIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { ScrollArea } from '../ui/scroll-area';
 import { Switch } from '../ui/switch';
 import { Label } from '../ui/label';
-import { useSettingsStore, GENRES, type Genre } from '../../store/settingsStore';
+import { Input } from '../ui/input';
+import { useSettingsStore, GENRES, MAP_STYLES, type Genre, type MapStyle } from '../../store/settingsStore';
 import { hasFileSystemAccess } from '../../file/fileHandle';
+
+const MAP_STYLE_LABEL: Record<MapStyle, string> = {
+  dark: 'Dark',
+  light: 'Light',
+  osm: 'OSM Standard',
+  custom: 'Custom',
+};
 
 const GENRE_LABEL: Record<Genre, string> = {
   noir: 'Noir',
@@ -34,6 +42,10 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
   const setAutomation = useSettingsStore((s) => s.setAutomation);
   const preferBrowserStorage = useSettingsStore((s) => s.preferBrowserStorage);
   const setPreferBrowserStorage = useSettingsStore((s) => s.setPreferBrowserStorage);
+  const mapStyle = useSettingsStore((s) => s.mapStyle);
+  const setMapStyle = useSettingsStore((s) => s.setMapStyle);
+  const customMapUrl = useSettingsStore((s) => s.customMapUrl);
+  const setCustomMapUrl = useSettingsStore((s) => s.setCustomMapUrl);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -90,6 +102,43 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
                 </div>
               </div>
               <Switch checked={autoAdvanceDay} onCheckedChange={(v) => setAutomation('autoAdvanceDay', v)} />
+            </div>
+          </div>
+
+          <div>
+            <Label className="mb-2 block text-xs uppercase tracking-wider text-muted-foreground font-mono">Map</Label>
+            <div className="rounded-lg border border-border px-3 py-2.5 space-y-2.5">
+              <div className="flex items-center gap-2">
+                <MapIcon size={14} className="text-muted-foreground" />
+                <Label className="text-sm">Tile source</Label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {MAP_STYLES.map((style) => (
+                  <button
+                    key={style}
+                    onClick={() => setMapStyle(style)}
+                    className={`rounded-md border px-2.5 py-1.5 text-[12px] text-left transition-colors ${
+                      mapStyle === style
+                        ? 'border-primary text-primary bg-primary/10'
+                        : 'border-border text-muted-foreground hover:border-muted-foreground/40'
+                    }`}
+                  >
+                    {MAP_STYLE_LABEL[style]}
+                  </button>
+                ))}
+              </div>
+              {mapStyle === 'custom' && (
+                <div className="space-y-1">
+                  <Input
+                    value={customMapUrl}
+                    onChange={(e) => setCustomMapUrl(e.target.value)}
+                    placeholder="https://{s}.example.com/{z}/{x}/{y}.png"
+                  />
+                  <div className="text-[11px] text-muted-foreground">
+                    A tile URL template with <code>{'{s}'}</code>, <code>{'{z}'}</code>, <code>{'{x}'}</code>, <code>{'{y}'}</code> placeholders.
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

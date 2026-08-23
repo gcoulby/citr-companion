@@ -75,154 +75,162 @@ export function InfoPanel({ onClose }: Props) {
             </div>
           </DialogTitle>
         </DialogHeader>
+        <div className="max-h-[65dvh] overflow-hidden">
+          <ScrollArea className="flex-1 px-6 py-5 min-h-0 max-h-[65dvh]">
+            <Section icon={<Layers size={14} />} title="What is this?">
+              <p className="text-[12px] text-muted-foreground leading-relaxed">
+                A companion app for{' '}
+                <em className="text-foreground">Caught in the Rain</em>, a solo
+                card-and-dice mystery RPG. Build a spatial case board of
+                entities (people, locations, objects, events, clues, truths) and
+                the relationships between them, alongside your investigator
+                sheet, the clue/truth decks, and dice &amp; oracle rollers for
+                the game itself — all stored in a single{' '}
+                <code className="bg-muted px-1 rounded text-primary">
+                  .citr
+                </code>{' '}
+                file on your disk.
+              </p>
+              <p className="mt-2 text-[12px] text-muted-foreground leading-relaxed">
+                Think of the board as a digital version of the detective's
+                evidence board: nodes are index cards, edges are the red threads
+                between them.
+              </p>
+            </Section>
 
-        <ScrollArea className="flex-1 px-6 py-5 min-h-0 max-h-[45dvh]">
-          <Section icon={<Layers size={14} />} title="What is this?">
-            <p className="text-[12px] text-muted-foreground leading-relaxed">
-              A companion app for{' '}
-              <em className="text-foreground">Caught in the Rain</em>, a solo
-              card-and-dice mystery RPG. Build a spatial case board of entities
-              (people, locations, objects, events, clues, truths) and the
-              relationships between them, alongside your investigator sheet, the
-              clue/truth decks, and dice &amp; oracle rollers for the game
-              itself — all stored in a single{' '}
-              <code className="bg-muted px-1 rounded text-primary">.citr</code>{' '}
-              file on your disk.
-            </p>
-            <p className="mt-2 text-[12px] text-muted-foreground leading-relaxed">
-              Think of the board as a digital version of the detective's
-              evidence board: nodes are index cards, edges are the red threads
-              between them.
-            </p>
-          </Section>
+            <Section icon={<Lock size={14} />} title="Privacy & Security">
+              <div className="space-y-2 text-[12px] text-muted-foreground">
+                <div className="flex gap-2">
+                  <span className="mt-0.5 text-primary shrink-0">→</span>
+                  <span>
+                    <strong className="text-foreground">Fully offline.</strong>{' '}
+                    Zero network requests at runtime. No analytics, no
+                    telemetry, no CDN calls.
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="mt-0.5 text-primary shrink-0">→</span>
+                  <span>
+                    <strong className="text-foreground">
+                      Single-file storage.
+                    </strong>{' '}
+                    Everything lives in the{' '}
+                    <code className="bg-muted px-1 rounded text-primary">
+                      .citr
+                    </code>{' '}
+                    file — a ZIP archive you control.
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="mt-0.5 text-primary shrink-0">→</span>
+                  <span>
+                    <strong className="text-foreground">No cloud.</strong> No
+                    accounts, no sync services, no external dependencies at
+                    runtime.
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="mt-0.5 text-primary shrink-0">→</span>
+                  <span>
+                    <strong className="text-foreground">USB-safe.</strong> The
+                    app can run as a static bundle from a USB stick or local
+                    file server.
+                  </span>
+                </div>
+                <div className="flex gap-2 bg-primary/5 mt-3 p-3 border border-primary/20 rounded">
+                  <span className="mt-0.5 text-primary shrink-0">⚠</span>
+                  <span>
+                    <strong className="text-primary">Note:</strong> The{' '}
+                    <code className="bg-muted px-1 rounded text-primary">
+                      .citr
+                    </code>{' '}
+                    file is only optionally encrypted (set a passphrase when
+                    creating a case). The 3 sealed truth cards are lightly
+                    obfuscated inside the file, not cryptographically hidden —
+                    treat the file like any other document about a case you
+                    don't want to spoil for yourself.
+                  </span>
+                </div>
+              </div>
+            </Section>
 
-          <Section icon={<Lock size={14} />} title="Privacy & Security">
-            <div className="space-y-2 text-[12px] text-muted-foreground">
-              <div className="flex gap-2">
-                <span className="mt-0.5 text-primary shrink-0">→</span>
-                <span>
-                  <strong className="text-foreground">Fully offline.</strong>{' '}
-                  Zero network requests at runtime. No analytics, no telemetry,
-                  no CDN calls.
-                </span>
+            <Section icon={<Keyboard size={14} />} title="Keyboard Shortcuts">
+              <div className="bg-background p-3 border border-border rounded">
+                <KbRow keys={['Ctrl', 'K']} action="Open search" />
+                <KbRow keys={['Esc']} action="Close panel / dismiss" />
+                <KbRow keys={['Del']} action="Delete selected node" />
+                <KbRow
+                  keys={['Right-click', 'canvas']}
+                  action="Add node at position"
+                />
+                <KbRow
+                  keys={['Double-click', 'node']}
+                  action="Open node panel"
+                />
+                <KbRow keys={['Right-click']} action="Context menu" />
+                <KbRow keys={['Drag', 'handle']} action="Connect nodes" />
+                <KbRow
+                  keys={['Drag to', 'empty']}
+                  action="Create connected node"
+                />
+                <KbRow keys={['Ctrl', 'A']} action="Select all nodes" />
               </div>
-              <div className="flex gap-2">
-                <span className="mt-0.5 text-primary shrink-0">→</span>
-                <span>
-                  <strong className="text-foreground">
-                    Single-file storage.
-                  </strong>{' '}
-                  Everything lives in the{' '}
-                  <code className="bg-muted px-1 rounded text-primary">
-                    .citr
-                  </code>{' '}
-                  file — a ZIP archive you control.
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <span className="mt-0.5 text-primary shrink-0">→</span>
-                <span>
-                  <strong className="text-foreground">No cloud.</strong> No
-                  accounts, no sync services, no external dependencies at
-                  runtime.
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <span className="mt-0.5 text-primary shrink-0">→</span>
-                <span>
-                  <strong className="text-foreground">USB-safe.</strong> The app
-                  can run as a static bundle from a USB stick or local file
-                  server.
-                </span>
-              </div>
-              <div className="flex gap-2 bg-primary/5 mt-3 p-3 border border-primary/20 rounded">
-                <span className="mt-0.5 text-primary shrink-0">⚠</span>
-                <span>
-                  <strong className="text-primary">Note:</strong> The{' '}
-                  <code className="bg-muted px-1 rounded text-primary">
-                    .citr
-                  </code>{' '}
-                  file is only optionally encrypted (set a passphrase when
-                  creating a case). The 3 sealed truth cards are lightly
-                  obfuscated inside the file, not cryptographically hidden —
-                  treat the file like any other document about a case you don't
-                  want to spoil for yourself.
-                </span>
-              </div>
-            </div>
-          </Section>
+            </Section>
 
-          <Section icon={<Keyboard size={14} />} title="Keyboard Shortcuts">
-            <div className="bg-background p-3 border border-border rounded">
-              <KbRow keys={['Ctrl', 'K']} action="Open search" />
-              <KbRow keys={['Esc']} action="Close panel / dismiss" />
-              <KbRow keys={['Del']} action="Delete selected node" />
-              <KbRow
-                keys={['Right-click', 'canvas']}
-                action="Add node at position"
-              />
-              <KbRow keys={['Double-click', 'node']} action="Open node panel" />
-              <KbRow keys={['Right-click']} action="Context menu" />
-              <KbRow keys={['Drag', 'handle']} action="Connect nodes" />
-              <KbRow
-                keys={['Drag to', 'empty']}
-                action="Create connected node"
-              />
-              <KbRow keys={['Ctrl', 'A']} action="Select all nodes" />
-            </div>
-          </Section>
+            <Section icon={<FileArchive size={14} />} title="File Format">
+              <p className="mb-2 text-[12px] text-muted-foreground leading-relaxed">
+                A{' '}
+                <code className="bg-muted px-1 rounded text-primary">
+                  .citr
+                </code>{' '}
+                file is a standard ZIP archive containing:
+              </p>
+              <div className="space-y-1 bg-background p-3 border border-border rounded font-mono text-[11px] text-muted-foreground">
+                <div>
+                  <span className="text-emerald-500">manifest.json</span> —
+                  schema version, case title, timestamps
+                </div>
+                <div>
+                  <span className="text-emerald-500">graph.json</span> — all
+                  nodes and edges
+                </div>
+                <div>
+                  <span className="text-emerald-500">canvas.json</span> — node
+                  positions, viewport state
+                </div>
+                <div>
+                  <span className="text-emerald-500">investigator.json</span> —
+                  your investigator's sheet
+                </div>
+                <div>
+                  <span className="text-emerald-500">mystery.json</span> — the
+                  case's problem, danger, clock, clues, threats
+                </div>
+                <div>
+                  <span className="text-emerald-500">decks.json</span> — the
+                  clue/truth decks, incl. the sealed truth cards
+                </div>
+                <div>
+                  <span className="text-emerald-500">assets/</span> —
+                  thumbnails, attached images and PDFs
+                </div>
+                <div>
+                  <span className="text-emerald-500">content/</span> — rich text
+                  content per node
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] text-muted-foreground/70">
+                You can unzip and inspect a{' '}
+                <code className="text-primary">.citr</code> file with any
+                standard archive tool — though opening{' '}
+                <code className="text-primary">decks.json</code> will spoil your
+                own mystery.
+              </p>
+            </Section>
+          </ScrollArea>
+        </div>
 
-          <Section icon={<FileArchive size={14} />} title="File Format">
-            <p className="mb-2 text-[12px] text-muted-foreground leading-relaxed">
-              A{' '}
-              <code className="bg-muted px-1 rounded text-primary">.citr</code>{' '}
-              file is a standard ZIP archive containing:
-            </p>
-            <div className="space-y-1 bg-background p-3 border border-border rounded font-mono text-[11px] text-muted-foreground">
-              <div>
-                <span className="text-emerald-500">manifest.json</span> — schema
-                version, case title, timestamps
-              </div>
-              <div>
-                <span className="text-emerald-500">graph.json</span> — all nodes
-                and edges
-              </div>
-              <div>
-                <span className="text-emerald-500">canvas.json</span> — node
-                positions, viewport state
-              </div>
-              <div>
-                <span className="text-emerald-500">investigator.json</span> —
-                your investigator's sheet
-              </div>
-              <div>
-                <span className="text-emerald-500">mystery.json</span> — the
-                case's problem, danger, clock, clues, threats
-              </div>
-              <div>
-                <span className="text-emerald-500">decks.json</span> — the
-                clue/truth decks, incl. the sealed truth cards
-              </div>
-              <div>
-                <span className="text-emerald-500">assets/</span> — thumbnails,
-                attached images and PDFs
-              </div>
-              <div>
-                <span className="text-emerald-500">content/</span> — rich text
-                content per node
-              </div>
-            </div>
-            <p className="mt-2 text-[11px] text-muted-foreground/70">
-              You can unzip and inspect a{' '}
-              <code className="text-primary">.citr</code> file with any standard
-              archive tool — though opening{' '}
-              <code className="text-primary">decks.json</code> will spoil your
-              own mystery.
-            </p>
-          </Section>
-        </ScrollArea>
-
-        <DialogFooter className="sm:justify-center px-6 py-3 border-border border-t">
+        <DialogFooter className="sm:justify-center px-6 py-3 pb-6 border-border border-t">
           <Button onClick={onClose}>Close</Button>
         </DialogFooter>
       </DialogContent>
