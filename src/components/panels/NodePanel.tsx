@@ -18,7 +18,6 @@ import { nanoid } from 'nanoid'
 import { useGraphStore } from '../../store/graphStore'
 import { useMysteryStore } from '../../store/mysteryStore'
 import { useBacklinksStore, type BacklinkRef } from '../../store/backlinksStore'
-import { useSettingsStore } from '../../store/settingsStore'
 import { useCaseSettingsStore } from '../../store/caseSettingsStore'
 import { getAllTags } from '../../graph/graphOps'
 import { assetMap } from '../../hooks/useAutoSave'
@@ -69,8 +68,8 @@ export function NodePanel({ nodeId, onClose, onOpenDocument }: Props) {
     node?.clue ? s.clueSets[node.clue.rank] : undefined,
   )
   const backlinks = useBacklinksStore((s) => s.index[nodeId] ?? EMPTY_BACKLINKS)
-  const mapStyle = useSettingsStore((s) => s.mapStyle)
-  const customMapUrl = useSettingsStore((s) => s.customMapUrl)
+  const mapStyle = useCaseSettingsStore((s) => s.settings.mapStyle ?? 'dark')
+  const customMapUrl = useCaseSettingsStore((s) => s.settings.customMapUrl ?? '')
   const mapImageAssetId = useCaseSettingsStore(
     (s) => s.settings.mapImageAssetId,
   )

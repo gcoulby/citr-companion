@@ -3,7 +3,6 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { MapPin } from 'lucide-react'
 import { useGraphStore } from '../../store/graphStore'
-import { useSettingsStore } from '../../store/settingsStore'
 import { useCaseSettingsStore } from '../../store/caseSettingsStore'
 import { getCachedAsset } from '../../lib/assetCache'
 import { resolveMapSource } from '../../lib/locationUtils'
@@ -63,8 +62,8 @@ export function MapView({ onSelectNode }: Props) {
   const [mapReadyTick, setMapReadyTick] = useState(0)
   const nodes = useGraphStore((s) => s.nodes)
 
-  const mapStyle = useSettingsStore((s) => s.mapStyle)
-  const customMapUrl = useSettingsStore((s) => s.customMapUrl)
+  const mapStyle = useCaseSettingsStore((s) => s.settings.mapStyle ?? 'dark')
+  const customMapUrl = useCaseSettingsStore((s) => s.settings.customMapUrl ?? '')
   const mapImageAssetId = useCaseSettingsStore((s) => s.settings.mapImageAssetId)
   const mapImageWidth = useCaseSettingsStore((s) => s.settings.mapImageWidth)
   const mapImageHeight = useCaseSettingsStore((s) => s.settings.mapImageHeight)

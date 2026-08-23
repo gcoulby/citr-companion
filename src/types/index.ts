@@ -1,4 +1,5 @@
 import type { PlayingCard } from '../game/types';
+import type { MapStyle } from '../lib/locationUtils';
 
 export type NodeId = string;
 export type EdgeId = string;
@@ -140,6 +141,12 @@ export interface CaseSettings {
   mapImageAssetId?: string;
   mapImageWidth?: number;
   mapImageHeight?: number;
+  /** Map tile/image source used for location pins on the board and in the
+   *  picker — per-case, since it's tied to which map image (if any) this
+   *  case has uploaded. */
+  mapStyle?: MapStyle;
+  /** Tile URL template used when mapStyle is 'custom'. */
+  customMapUrl?: string;
 }
 
 export const DEFAULT_CASE_SETTINGS: CaseSettings = {};

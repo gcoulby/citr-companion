@@ -8,7 +8,6 @@ import { resolveMapSource } from '../../lib/locationUtils'
 import { PlayingCardView } from '../play/PlayingCard'
 import { MiniMap } from './MiniMap'
 import { useMysteryStore } from '../../store/mysteryStore'
-import { useSettingsStore } from '../../store/settingsStore'
 import { useCaseSettingsStore } from '../../store/caseSettingsStore'
 import { getCachedAsset } from '../../lib/assetCache'
 
@@ -35,8 +34,8 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
     hasMap && (node.featureDisplay === 'map' || (!thumbnailUrl && hasMap))
   const showImg = Boolean(thumbnailUrl) && !showMap
 
-  const mapStyle = useSettingsStore((s) => s.mapStyle)
-  const customMapUrl = useSettingsStore((s) => s.customMapUrl)
+  const mapStyle = useCaseSettingsStore((s) => s.settings.mapStyle ?? 'dark')
+  const customMapUrl = useCaseSettingsStore((s) => s.settings.customMapUrl ?? '')
   const mapImageAssetId = useCaseSettingsStore((s) => s.settings.mapImageAssetId)
   const mapImageWidth = useCaseSettingsStore((s) => s.settings.mapImageWidth)
   const mapImageHeight = useCaseSettingsStore((s) => s.settings.mapImageHeight)

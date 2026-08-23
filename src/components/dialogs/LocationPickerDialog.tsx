@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { resolveMapSource } from '../../lib/locationUtils'
-import { useSettingsStore } from '../../store/settingsStore'
 import { useCaseSettingsStore } from '../../store/caseSettingsStore'
 import { getCachedAsset } from '../../lib/assetCache'
 
@@ -45,8 +44,8 @@ export function LocationPickerDialog({ initial, onConfirm, onClose }: Props) {
   const [searching, setSearching] = useState(false)
   const [searchErr, setSearchErr] = useState('')
 
-  const mapStyle = useSettingsStore((s) => s.mapStyle)
-  const customMapUrl = useSettingsStore((s) => s.customMapUrl)
+  const mapStyle = useCaseSettingsStore((s) => s.settings.mapStyle ?? 'dark')
+  const customMapUrl = useCaseSettingsStore((s) => s.settings.customMapUrl ?? '')
   const mapImageAssetId = useCaseSettingsStore(
     (s) => s.settings.mapImageAssetId,
   )
@@ -77,8 +76,7 @@ export function LocationPickerDialog({ initial, onConfirm, onClose }: Props) {
       }
       if (!el) return
 
-      const { mapStyle, customMapUrl } = useSettingsStore.getState()
-      const { mapImageAssetId, mapImageWidth, mapImageHeight } =
+      const { mapStyle = 'dark', customMapUrl = '', mapImageAssetId, mapImageWidth, mapImageHeight } =
         useCaseSettingsStore.getState().settings
       const mapImageUrl = mapImageAssetId
         ? getCachedAsset(mapImageAssetId)

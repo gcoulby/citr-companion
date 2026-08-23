@@ -59,10 +59,10 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
   const setAutomation = useSettingsStore((s) => s.setAutomation);
   const preferBrowserStorage = useSettingsStore((s) => s.preferBrowserStorage);
   const setPreferBrowserStorage = useSettingsStore((s) => s.setPreferBrowserStorage);
-  const mapStyle = useSettingsStore((s) => s.mapStyle);
-  const setMapStyle = useSettingsStore((s) => s.setMapStyle);
-  const customMapUrl = useSettingsStore((s) => s.customMapUrl);
-  const setCustomMapUrl = useSettingsStore((s) => s.setCustomMapUrl);
+  const mapStyle = useCaseSettingsStore((s) => s.settings.mapStyle ?? 'dark');
+  const setMapStyle = useCaseSettingsStore((s) => s.setMapStyle);
+  const customMapUrl = useCaseSettingsStore((s) => s.settings.customMapUrl ?? '');
+  const setCustomMapUrl = useCaseSettingsStore((s) => s.setCustomMapUrl);
   const mapImageAssetId = useCaseSettingsStore((s) => s.settings.mapImageAssetId);
   const setMapImage = useCaseSettingsStore((s) => s.setMapImage);
   const clearMapImage = useCaseSettingsStore((s) => s.clearMapImage);

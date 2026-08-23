@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import type { CaseSettings } from '../types';
+import type { MapStyle } from '../lib/locationUtils';
 
 interface CaseSettingsStoreState {
   settings: CaseSettings;
   setMapImage: (assetId: string, width: number, height: number) => void;
   clearMapImage: () => void;
+  setMapStyle: (style: MapStyle) => void;
+  setCustomMapUrl: (url: string) => void;
   load: (settings: CaseSettings) => void;
   reset: () => void;
 }
@@ -23,6 +26,8 @@ export const useCaseSettingsStore = create<CaseSettingsStoreState>((set) => ({
       delete rest.mapImageHeight;
       return { settings: rest };
     }),
+  setMapStyle: (mapStyle) => set((s) => ({ settings: { ...s.settings, mapStyle } })),
+  setCustomMapUrl: (customMapUrl) => set((s) => ({ settings: { ...s.settings, customMapUrl } })),
   load: (settings) => set({ settings }),
   reset: () => set({ settings: {} }),
 }));
