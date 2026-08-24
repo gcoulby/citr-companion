@@ -1129,10 +1129,6 @@ function AppInner() {
               setShowScene(false)
               setEditorRef({ kind: 'case' })
             }}
-            onOpenResolve={() => {
-              setPlayInitialTab('resolve')
-              setShowPlay(true)
-            }}
             onOpenDiceOracles={() => {
               setPlayInitialTab('dice')
               setShowPlay(true)

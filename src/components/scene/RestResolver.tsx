@@ -42,14 +42,15 @@ export function RestResolver({ onSaved }: Props) {
 
   return (
     <div className="p-6 space-y-4 max-w-lg">
-      {!committed && (
-        <button
-          onClick={() => { resetUi(); setActiveKind(null); }}
-          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft size={12} /> Choose a different scene
-        </button>
-      )}
+      {/* Always available — navigating away doesn't lose anything, since this
+          resolver's session state (rolled/text) persists in sceneUiStore, so
+          picking Rest again from Choose Your Scene resumes right here. */}
+      <button
+        onClick={() => setActiveKind(null)}
+        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft size={12} /> Choose a different scene
+      </button>
       <h2 className="font-display text-lg text-foreground">Rest</h2>
 
       {!committed ? (

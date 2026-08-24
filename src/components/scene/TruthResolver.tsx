@@ -33,9 +33,9 @@ export function TruthResolver({ onSaved, onOpenDiceOracles }: Props) {
 
   // Rotating is the commit point — the clue set is marked toward truth and
   // the truth cards are drawn (removed from the game) for real at this
-  // moment, and the scene already counts against the clock. There's no clean
-  // way back after this, like a physical die once it's rolled, so the back
-  // link disappears and the only way forward is to finish the record.
+  // moment, and the scene already counts against the clock. Navigating away
+  // doesn't undo any of that, but it doesn't lose it either — the drawn/text
+  // state persists in sceneUiStore, so picking Truth again resumes here.
   const committed = ui.drawn !== null;
 
   const handleRotate = () => {
@@ -77,14 +77,12 @@ export function TruthResolver({ onSaved, onOpenDiceOracles }: Props) {
 
   return (
     <div className="p-6 space-y-4 max-w-lg">
-      {!committed && (
-        <button
-          onClick={() => { resetUi(); setActiveKind(null); }}
-          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft size={12} /> Choose a different scene
-        </button>
-      )}
+      <button
+        onClick={() => setActiveKind(null)}
+        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft size={12} /> Choose a different scene
+      </button>
       <h2 className="font-display text-lg text-foreground">Truth</h2>
 
       {candidates.length === 0 && !committed ? (

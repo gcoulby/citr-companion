@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { Pencil, FileText, BookOpen, Paperclip, MapPin } from 'lucide-react'
 import { clueCardsOf, type GraphNode } from '../../types'
@@ -41,15 +41,26 @@ export const NodeCard = memo(({ data, selected }: NodeProps) => {
   const mapImageHeight = useCaseSettingsStore((s) => s.settings.mapImageHeight)
 
   const mapImageUrl = mapImageAssetId ? getCachedAsset(mapImageAssetId) : undefined
-  const mapSource = showMap
-    ? resolveMapSource(
-        mapStyle,
-        customMapUrl,
-        mapImageUrl && mapImageWidth && mapImageHeight
-          ? { url: mapImageUrl, width: mapImageWidth, height: mapImageHeight }
-          : null,
-      )
-    : null
+  // Memoized on primitives, not recomputed as a fresh object every render —
+  // resolveMapSource() always returns a new object literal, and every node
+  // card re-renders on every drag frame (CaseBoard's rfNodes memo is keyed on
+  // the whole positions map), so an unmemoized value here fed a new object
+  // identity into MiniMap's ref-callback deps on each drag tick, tearing down
+  // and rebuilding the Leaflet instance (which briefly renders at zoom 0
+  // before its RAF fit-zoom correction) — visible as a flash to a higher zoom.
+  const mapSource = useMemo(
+    () =>
+      showMap
+        ? resolveMapSource(
+            mapStyle,
+            customMapUrl,
+            mapImageUrl && mapImageWidth && mapImageHeight
+              ? { url: mapImageUrl, width: mapImageWidth, height: mapImageHeight }
+              : null,
+          )
+        : null,
+    [showMap, mapStyle, customMapUrl, mapImageUrl, mapImageWidth, mapImageHeight],
+  )
 
   // A clue/truth's literal card is worth a glance, but it isn't a thumbnail —
   // it sits as a small badge next to the title instead of taking over the

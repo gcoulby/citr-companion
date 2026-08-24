@@ -24,8 +24,9 @@ export function ObligationResolver({ onSaved }: Props) {
 
   // Striking is the commit point — like a physical die, once it's struck the
   // discard already happened for real, and the scene already counted against
-  // the clock. Backing out after this can't un-strike it, so the back link
-  // disappears and the only way forward is to finish the record.
+  // the clock. Navigating away doesn't undo it (there's no "un-strike"), but
+  // it also doesn't lose it — the struck/text state persists in
+  // sceneUiStore, so picking Obligation again just resumes at this point.
   const handleStrike = () => {
     if (!ui.obligationId) return;
     m.runObligationScene(ui.obligationId); // strikes it + discards a clue card
@@ -47,14 +48,15 @@ export function ObligationResolver({ onSaved }: Props) {
 
   return (
     <div className="p-6 space-y-4 max-w-lg">
-      {!ui.struck && (
-        <button
-          onClick={() => { resetUi(); setActiveKind(null); }}
-          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft size={12} /> Choose a different scene
-        </button>
-      )}
+      {/* Always available — navigating away doesn't lose anything, since this
+          resolver's session state (obligationId/text/struck) persists in
+          sceneUiStore, so picking Obligation again resumes right here. */}
+      <button
+        onClick={() => setActiveKind(null)}
+        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft size={12} /> Choose a different scene
+      </button>
       <h2 className="font-display text-lg text-foreground">Obligation</h2>
 
       {unstruck.length === 0 && !ui.struck ? (

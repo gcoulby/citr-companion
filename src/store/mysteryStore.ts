@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import type {
   Mystery, MysteryProblem, ClueRank, ClueSet, InvestigationStage, ThreatKind, ThreatEntry, ResolveQuestion,
-  PlayingCard, Suit,
+  PlayingCard, Suit, TruthRank,
 } from '../game/types';
 import { buildClueDeck, buildTruthDeck, shuffle, drawOne, drawMany } from '../game/deck';
 import {
@@ -30,7 +30,9 @@ function emptyMystery(): Mystery {
     truthDeck: [],
     truthDiscard: [],
     sealed: [],
+    guesses: [],
     revealed: false,
+    correctGuessCount: null,
     resolved: false,
     started: false,
     lingeringQuestion: '',
@@ -61,6 +63,29 @@ function newClueBoardNodeId(rank: ClueRank, card: PlayingCard): string {
     properties: {},
     nodeType: 'clue',
     clue: { rank, status: 'established', cards: [card] },
+  }).id;
+}
+
+// Mirrors syncBoardClueNode/newClueBoardNodeId above, for threats — every
+// threat introduced should be visible on the board immediately, not only
+// once someone remembers to click a separate "Add to board" button.
+function syncBoardThreatNode(t: ThreatEntry) {
+  if (!t.boardNodeId) return;
+  useGraphStore.getState().updateNode(t.boardNodeId, {
+    label: t.name,
+    threat: { threatId: t.id, level: t.level, kind: t.kind, defeated: t.defeated },
+  });
+}
+
+function newThreatBoardNodeId(t: ThreatEntry): string {
+  return useGraphStore.getState().addNode({
+    label: t.name,
+    summary: '',
+    tags: [],
+    hasContent: false,
+    properties: {},
+    nodeType: 'threat',
+    threat: { threatId: t.id, level: t.level, kind: t.kind, defeated: t.defeated },
   }).id;
 }
 
@@ -96,7 +121,7 @@ interface MysteryStoreState extends Mystery {
   actAgainstThreatManual: (threatId: string, attribute: Attribute, a: number, b: number) => AttributeTestResult | null;
   addThreat: (level: 1 | 2 | 3, kind?: ThreatKind, name?: string) => string;
   renameThreat: (threatId: string, name: string) => void;
-  updateThreat: (threatId: string, patch: Partial<Pick<ThreatEntry, 'level' | 'kind'>>) => void;
+  updateThreat: (threatId: string, patch: Partial<Pick<ThreatEntry, 'level' | 'kind' | 'boardNodeId'>>) => void;
   defeatThreat: (threatId: string) => void;
 
   // ── Clue deck ──────────────────────────────────────────────────────────
@@ -124,9 +149,8 @@ interface MysteryStoreState extends Mystery {
   setClockMarks: (marks: number) => void;
 
   // ── Resolve ────────────────────────────────────────────────────────────
-  setGuess: (question: ResolveQuestion, clueSetId: string | null) => void;
+  toggleGuess: (card: { rank: TruthRank; suit: Suit }) => void;
   revealTruths: () => void;
-  setGuessCorrect: (question: ResolveQuestion, correct: boolean) => void;
   setGuessAnswer: (question: ResolveQuestion, answer: string) => void;
   finishResolve: () => void;
 
@@ -188,8 +212,6 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => {
     const sealed = sealedCards.map((card, i) => ({
       question: questions[i],
       card,
-      guessedClueSetId: null,
-      correct: null,
       answer: '',
     }));
     set({
@@ -317,20 +339,37 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => {
 
   addThreat: (level, kind = 'threat', name) => {
     const id = nanoid();
-    set((s) => ({ threats: [...s.threats, { id, name: name ?? 'Unknown threat', level, kind, marks: 0, defeated: false }] }));
+    const t: ThreatEntry = { id, name: name ?? 'Unknown threat', level, kind, marks: 0, defeated: false };
+    const boardNodeId = newThreatBoardNodeId(t);
+    set((s) => ({ threats: [...s.threats, { ...t, boardNodeId }] }));
     return id;
   },
 
   renameThreat: (threatId, name) =>
-    set((s) => ({ threats: s.threats.map((t) => (t.id === threatId ? { ...t, name } : t)) })),
+    set((s) => {
+      const threats = s.threats.map((t) => (t.id === threatId ? { ...t, name } : t));
+      const updated = threats.find((t) => t.id === threatId);
+      if (updated) syncBoardThreatNode(updated);
+      return { threats };
+    }),
 
   updateThreat: (threatId, patch) =>
-    set((s) => ({ threats: s.threats.map((t) => (t.id === threatId ? { ...t, ...patch } : t)) })),
+    set((s) => {
+      const threats = s.threats.map((t) => (t.id === threatId ? { ...t, ...patch } : t));
+      const updated = threats.find((t) => t.id === threatId);
+      if (updated) syncBoardThreatNode(updated);
+      return { threats };
+    }),
 
   // "Eliminate a threat" keyword action (p.31) — removes it from the scene
   // as if it had been defeated normally.
   defeatThreat: (threatId) =>
-    set((s) => ({ threats: s.threats.map((t) => (t.id === threatId ? { ...t, defeated: true } : t)) })),
+    set((s) => {
+      const threats = s.threats.map((t) => (t.id === threatId ? { ...t, defeated: true } : t));
+      const updated = threats.find((t) => t.id === threatId);
+      if (updated) syncBoardThreatNode(updated);
+      return { threats };
+    }),
 
   // ── Clue deck ─────────────────────────────────────────────────────────
 
@@ -525,13 +564,33 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => {
 
   // ── Resolve ───────────────────────────────────────────────────────────
 
-  setGuess: (question, clueSetId) =>
-    set((s) => ({ sealed: s.sealed.map((slot) => (slot.question === question ? { ...slot, guessedClueSetId: clueSetId } : slot)) })),
+  // Guesses are a set, not tied to a question — toggling adds/removes a
+  // card, capped at 3 (one per sealed truth, but not assigned to any of them
+  // ahead of time).
+  toggleGuess: (card) =>
+    set((s) => {
+      const exists = s.guesses.some((g) => g.rank === card.rank && g.suit === card.suit);
+      if (exists) return { guesses: s.guesses.filter((g) => !(g.rank === card.rank && g.suit === card.suit)) };
+      if (s.guesses.length >= 3) return {};
+      return { guesses: [...s.guesses, card] };
+    }),
 
-  revealTruths: () => set({ revealed: true }),
-
-  setGuessCorrect: (question, correct) =>
-    set((s) => ({ sealed: s.sealed.map((slot) => (slot.question === question ? { ...slot, correct } : slot)) })),
+  // How many guesses matched a sealed card (in any position) is computed
+  // here, not set by hand — p.36 step 2's "reveal the cards and compare them
+  // to your guesses" is a set comparison, not a positional one.
+  revealTruths: () =>
+    set((s) => {
+      const remainingSealed = [...s.sealed.map((slot) => slot.card)];
+      let correctGuessCount = 0;
+      for (const g of s.guesses) {
+        const idx = remainingSealed.findIndex((c) => c.rank === g.rank && c.suit === g.suit);
+        if (idx !== -1) {
+          correctGuessCount += 1;
+          remainingSealed.splice(idx, 1);
+        }
+      }
+      return { revealed: true, correctGuessCount };
+    }),
 
   setGuessAnswer: (question, answer) =>
     set((s) => ({ sealed: s.sealed.map((slot) => (slot.question === question ? { ...slot, answer } : slot)) })),

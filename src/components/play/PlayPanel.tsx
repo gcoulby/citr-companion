@@ -2,17 +2,19 @@ import { X } from 'lucide-react'
 import { InvestigatorTab } from './InvestigatorTab'
 import { MysteryTab } from './MysteryTab'
 import { DiceTab } from './DiceTab'
-import { ResolveTab } from './ResolveTab'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs'
 import { Button } from '../ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useIsMobile } from '../../hooks/use-mobile'
 
+// Resolving the mystery ("The Solve", p.35-36) lives in the Scene tab as
+// ResolveResolver — a full step-flow, not a sidebar tab — reached via the
+// "Resolve the mystery" option on Choose Your Scene, so it isn't duplicated
+// here.
 const TABS = [
   { id: 'investigator', label: 'Investigator' },
   { id: 'mystery', label: 'Mystery' },
   { id: 'dice', label: 'Dice & Oracles' },
-  { id: 'resolve', label: 'Resolve' },
 ] as const
 
 export type TabId = (typeof TABS)[number]['id']
@@ -68,9 +70,6 @@ export function PlayPanel({ onClose, onSelectNode, initialTab = 'mystery' }: Pro
             </TabsContent>
             <TabsContent value="dice">
               <DiceTab />
-            </TabsContent>
-            <TabsContent value="resolve">
-              <ResolveTab />
             </TabsContent>
           </ScrollArea>
         </div>

@@ -65,9 +65,9 @@ export async function writeCitr(opts: WriteOptions): Promise<Blob> {
   // Split mystery state: everything narrative/mechanical goes in mystery.json,
   // while the decks — including the 3 sealed truth cards — go in decks.json,
   // lightly obfuscated so they aren't plaintext when browsing the archive.
-  const { clueDeck, clueDiscard, truthDeck, truthDiscard, sealed, revealed, ...mysteryRest } = opts.mystery;
+  const { clueDeck, clueDiscard, truthDeck, truthDiscard, sealed, guesses, revealed, correctGuessCount, ...mysteryRest } = opts.mystery;
   zip.file('mystery.json', JSON.stringify(mysteryRest, null, 2));
-  zip.file('decks.json', obfuscate({ clueDeck, clueDiscard, truthDeck, truthDiscard, sealed, revealed }));
+  zip.file('decks.json', obfuscate({ clueDeck, clueDiscard, truthDeck, truthDiscard, sealed, guesses, revealed, correctGuessCount }));
 
   // Write dirty content blobs
   if (opts.contentDirty && opts.contentMap) {

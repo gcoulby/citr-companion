@@ -314,10 +314,12 @@ export function MysteryTab({ onSelectNode }: MysteryTabProps) {
     if (cs.boardNodeId) addEdge({ source: cs.boardNodeId, target: truthNode.id, label: 'confirms' });
   };
 
+  // Fallback for threats from before board nodes were created automatically
+  // on introduction — new threats no longer need this.
   const handleAddThreatToBoard = (threatId: string) => {
     const t = m.threats.find((x) => x.id === threatId);
-    if (!t) return;
-    addNode({
+    if (!t || t.boardNodeId) return;
+    const node = addNode({
       label: t.name,
       summary: '',
       tags: [],
@@ -326,6 +328,7 @@ export function MysteryTab({ onSelectNode }: MysteryTabProps) {
       nodeType: 'threat',
       threat: { threatId: t.id, level: t.level, kind: t.kind, defeated: t.defeated },
     });
+    m.updateThreat(threatId, { boardNodeId: node.id });
   };
 
   return (
@@ -616,7 +619,16 @@ export function MysteryTab({ onSelectNode }: MysteryTabProps) {
                   <Dices size={11} />
                 </button>
                 <Badge tone={t.defeated ? 'default' : t.kind === 'rival' ? 'red' : 'default'}>L{t.level}</Badge>
-                <SmallButton onClick={() => handleAddThreatToBoard(t.id)}>Add to board</SmallButton>
+                {t.boardNodeId ? (
+                  <button
+                    onClick={() => t.boardNodeId && onSelectNode?.(t.boardNodeId)}
+                    className="text-primary hover:underline"
+                  >
+                    on board
+                  </button>
+                ) : (
+                  <SmallButton onClick={() => handleAddThreatToBoard(t.id)}>Add to board</SmallButton>
+                )}
               </div>
             ))}
           </div>

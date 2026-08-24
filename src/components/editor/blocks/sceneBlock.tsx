@@ -1,7 +1,7 @@
 import { createReactBlockSpec } from '@blocknote/react';
-import { Search, Gem, AlertTriangle, Moon, CircleDashed } from 'lucide-react';
+import { Search, Gem, AlertTriangle, Moon, CircleDashed, Award } from 'lucide-react';
 
-export type SceneType = 'investigation' | 'truth' | 'obligation' | 'rest' | 'other';
+export type SceneType = 'investigation' | 'truth' | 'obligation' | 'rest' | 'resolve' | 'other';
 export type InvestigationStageOrNone = '' | 'infiltration' | 'discovery' | 'acquisition' | 'escape';
 
 export const SCENE_TYPE_CONFIG: Record<SceneType, { label: string; icon: React.ReactNode; color: string }> = {
@@ -9,6 +9,7 @@ export const SCENE_TYPE_CONFIG: Record<SceneType, { label: string; icon: React.R
   truth:         { label: 'Truth',         icon: <Gem size={12} />,    color: 'text-yellow-300 bg-yellow-300/10 border-yellow-300/30' },
   obligation:    { label: 'Obligation',    icon: <AlertTriangle size={12} />, color: 'text-red-400 bg-red-400/10 border-red-400/30' },
   rest:          { label: 'Rest',          icon: <Moon size={12} />,   color: 'text-blue-400 bg-blue-400/10 border-blue-400/30' },
+  resolve:       { label: 'The Solve',     icon: <Award size={12} />,  color: 'text-purple-400 bg-purple-400/10 border-purple-400/30' },
   other:         { label: 'Scene',         icon: <CircleDashed size={12} />, color: 'text-muted-foreground bg-muted border-border' },
 };
 
@@ -16,7 +17,7 @@ export const sceneBlockFactory = createReactBlockSpec(
   {
     type: 'scene',
     propSchema: {
-      sceneType: { default: 'other' as SceneType, values: ['investigation', 'truth', 'obligation', 'rest', 'other'] as const },
+      sceneType: { default: 'other' as SceneType, values: ['investigation', 'truth', 'obligation', 'rest', 'resolve', 'other'] as const },
       stage: { default: '' as InvestigationStageOrNone, values: ['', 'infiltration', 'discovery', 'acquisition', 'escape'] as const },
       day: { default: 0 },
       danger: { default: 0 },

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { ArrowLeft, Dices, Pencil } from 'lucide-react'
-import { useMysteryStore } from '../../store/mysteryStore'
+import { useMysteryStore, type ClueDrawResult } from '../../store/mysteryStore'
 import { useInvestigatorStore } from '../../store/investigatorStore'
 import { useSettingsStore } from '../../store/settingsStore'
+import { useGraphStore } from '../../store/graphStore'
 import {
   useSceneUiStore,
   type InvestigationUiState,
@@ -35,6 +36,7 @@ import {
   TextArea,
   TextInput,
   DiceRoller,
+  CopyButton,
 } from '../play/ui'
 import { ClueDrawControl } from '../play/MysteryTab'
 import { PlayingCardView } from '../play/PlayingCard'
@@ -125,11 +127,20 @@ export function InvestigationResolver({ onSaved, onOpenResolve }: Props) {
   const [rerollPending, setRerollPending] = useState<RerollPending | null>(
     null,
   )
+  // A drawn Joker (p.17) pauses a clue draw mid-action: pick a clue set
+  // (that isn't already a truth) to become a false lead, then the draw
+  // continues automatically. `context` tracks which of the two draw slots
+  // (the stage's own clue, or the 10+ bonus clue) is waiting.
+  const [jokerChoice, setJokerChoice] = useState<{
+    context: 'stage' | 'bonus'
+    candidateClueSetIds: string[]
+  } | null>(null)
   // A fresh stage attempt invalidates any in-progress reroll bookkeeping
   // from the attempt just left behind.
   const startFreshAttempt = () => {
     setPreTestSnapshot(null)
     setRerollPending(null)
+    setJokerChoice(null)
     resetStageAttempt()
   }
 
@@ -383,6 +394,63 @@ export function InvestigationResolver({ onSaved, onOpenResolve }: Props) {
       : ` (${card.rank})`
   }
 
+  // Every clue-draw outcome, including the two the old draw handling used to
+  // drop silently: a Joker (p.17) either pauses for a false-lead pick, or —
+  // with no clue sets left to sacrifice — doubles danger outright.
+  const handleClueDrawResult = (
+    context: 'stage' | 'bonus',
+    result: ClueDrawResult,
+    action: string,
+    manual: boolean,
+  ) => {
+    const suffix = manual ? ' (physical draw)' : ''
+    if (result.kind === 'established' || result.kind === 'strengthened') {
+      appendLog(`${action}${suffix}.${drawnCardLabel(result.rank)}`, stage)
+      updateInvestigation(
+        context === 'stage'
+          ? { stageClueDrawn: true, stageClueRank: result.rank }
+          : { bonusClueDrawn: true, bonusClueRank: result.rank },
+      )
+      return
+    }
+    if (result.kind === 'jokerChoice') {
+      appendLog(
+        `${action}${suffix} drew a Joker — choose a clue set to become a false lead.`,
+        stage,
+      )
+      setJokerChoice({ context, candidateClueSetIds: result.candidateClueSetIds })
+      return
+    }
+    if (result.kind === 'doubleDanger') {
+      appendLog(
+        `${action}${suffix} drew a Joker with no clue sets to sacrifice — danger doubled to ${useMysteryStore.getState().danger}.`,
+        stage,
+      )
+      updateInvestigation(
+        context === 'stage'
+          ? { stageClueDrawn: true, stageClueRank: '' }
+          : { bonusClueDrawn: true, bonusClueRank: '' },
+      )
+      return
+    }
+    // Discarded into an existing false lead/truth, or the deck is empty —
+    // nothing more to show, but the draw action is still used up.
+    appendLog(`${action}${suffix} gained no clue.`, stage)
+    updateInvestigation(
+      context === 'stage'
+        ? { stageClueDrawn: true, stageClueRank: '' }
+        : { bonusClueDrawn: true, bonusClueRank: '' },
+    )
+  }
+
+  const handleResolveJoker = (clueSetId: string) => {
+    if (!jokerChoice) return
+    const cs = m.clueSets[clueSetId]
+    m.resolveJoker(clueSetId)
+    appendLog(`Clue ${cs?.rank ?? clueSetId} becomes a false lead.`, stage)
+    setJokerChoice(null)
+  }
+
   // ── Keyword actions (p.31) ───────────────────────────────────────────────
   const handleReroll = (keywordId: string) => {
     if (!preTestSnapshot || !ui.test) return
@@ -433,10 +501,18 @@ export function InvestigationResolver({ onSaved, onOpenResolve }: Props) {
 
   const applyRandomEvent = (oracle: ReturnType<typeof rollSubjectOracle>) => {
     updateInvestigation({ randomEvent: oracle })
-    appendLog(
-      `Random event: ${oracle.action.result} the ${oracle.descriptor.result} ${oracle.focus.result}.`,
-      stage,
-    )
+    const summary = `${oracle.action.result} the ${oracle.descriptor.result} ${oracle.focus.result}.`
+    appendLog(`Random event: ${summary}`, stage)
+    // Visible on the board immediately, same as clues/threats — not a
+    // separate manual step.
+    useGraphStore.getState().addNode({
+      label: 'Random event',
+      summary,
+      tags: [],
+      hasContent: false,
+      properties: {},
+      nodeType: 'event',
+    })
   }
   const handleRandomEvent = () => applyRandomEvent(rollSubjectOracle())
   const handleRandomEventManual = (
@@ -531,9 +607,12 @@ export function InvestigationResolver({ onSaved, onOpenResolve }: Props) {
 
   return (
     <div className="space-y-4 p-6 max-w-2xl">
-      {/* No back link once the investigation has started — the roll and every
-          test/consequence past it are real, committed effects (like physical
-          dice), so there's no clean "abandon" once underway. */}
+      {/* Always available — every roll past this point is a real, committed
+          effect (like physical dice), so leaving doesn't undo any of it. But
+          nothing is lost either: this whole attempt lives in sceneUiStore, so
+          picking Investigation again from Choose Your Scene resumes exactly
+          here, mid-stage rolls and all. */}
+      <BackButton onClick={() => setActiveKind(null)} />
       <h2 className="font-display text-foreground text-lg">Investigation</h2>
       <PhaseTracker phases={phases} />
 
@@ -643,10 +722,15 @@ export function InvestigationResolver({ onSaved, onOpenResolve }: Props) {
                 </div>
               )}
               {ui.randomEvent && (
-                <div className="text-[11px] text-primary">
-                  Random event: {ui.randomEvent.action.result} the{' '}
-                  {ui.randomEvent.descriptor.result}{' '}
-                  {ui.randomEvent.focus.result}.
+                <div className="flex items-center gap-1.5 text-[11px] text-primary">
+                  <span>
+                    Random event: {ui.randomEvent.action.result} the{' '}
+                    {ui.randomEvent.descriptor.result}{' '}
+                    {ui.randomEvent.focus.result}.
+                  </span>
+                  <CopyButton
+                    text={`${ui.randomEvent.action.result} the ${ui.randomEvent.descriptor.result} ${ui.randomEvent.focus.result}`}
+                  />
                 </div>
               )}
               {test.belowDanger && (
@@ -753,41 +837,27 @@ export function InvestigationResolver({ onSaved, onOpenResolve }: Props) {
               {stage === 'acquisition' && test.outcome !== 'failure' && (
                 <div>
                   <SectionLabel>Discover a clue</SectionLabel>
-                  <ClueDrawControl
-                    disabled={ui.stageClueDrawn}
-                    onDraw={() => {
-                      const result = m.drawClueCard()
-                      const rank =
-                        result.kind === 'established' ||
-                        result.kind === 'strengthened'
-                          ? result.rank
-                          : ''
-                      appendLog(
-                        `Discovered a clue.${rank ? drawnCardLabel(rank) : ''}`,
-                        stage,
-                      )
-                      updateInvestigation({
-                        stageClueDrawn: true,
-                        stageClueRank: rank,
-                      })
-                    }}
-                    onManual={(rank, suit) => {
-                      const result = m.drawClueCardManual(rank, suit)
-                      const resultRank =
-                        result.kind === 'established' ||
-                        result.kind === 'strengthened'
-                          ? result.rank
-                          : ''
-                      appendLog(
-                        `Discovered a clue (physical draw).${resultRank ? drawnCardLabel(resultRank) : ''}`,
-                        stage,
-                      )
-                      updateInvestigation({
-                        stageClueDrawn: true,
-                        stageClueRank: resultRank,
-                      })
-                    }}
-                  />
+                  {jokerChoice?.context === 'stage' ? (
+                    <JokerChoicePicker
+                      candidateClueSetIds={jokerChoice.candidateClueSetIds}
+                      onPick={handleResolveJoker}
+                    />
+                  ) : (
+                    <ClueDrawControl
+                      disabled={ui.stageClueDrawn}
+                      onDraw={() =>
+                        handleClueDrawResult('stage', m.drawClueCard(), 'Discovered a clue', false)
+                      }
+                      onManual={(rank, suit) =>
+                        handleClueDrawResult(
+                          'stage',
+                          m.drawClueCardManual(rank, suit),
+                          'Discovered a clue',
+                          true,
+                        )
+                      }
+                    />
+                  )}
                   {ui.stageClueRank && (
                     <ClueDrawnPreview
                       rank={ui.stageClueRank}
@@ -800,41 +870,27 @@ export function InvestigationResolver({ onSaved, onOpenResolve }: Props) {
               {test.outcome === 'success' && stage === 'acquisition' && (
                 <div>
                   <SectionLabel>Bonus clue (10+)</SectionLabel>
-                  <ClueDrawControl
-                    disabled={ui.bonusClueDrawn}
-                    onDraw={() => {
-                      const result = m.drawClueCard()
-                      const rank =
-                        result.kind === 'established' ||
-                        result.kind === 'strengthened'
-                          ? result.rank
-                          : ''
-                      appendLog(
-                        `Gained a bonus clue.${rank ? drawnCardLabel(rank) : ''}`,
-                        stage,
-                      )
-                      updateInvestigation({
-                        bonusClueDrawn: true,
-                        bonusClueRank: rank,
-                      })
-                    }}
-                    onManual={(rank, suit) => {
-                      const result = m.drawClueCardManual(rank, suit)
-                      const resultRank =
-                        result.kind === 'established' ||
-                        result.kind === 'strengthened'
-                          ? result.rank
-                          : ''
-                      appendLog(
-                        `Gained a bonus clue (physical draw).${resultRank ? drawnCardLabel(resultRank) : ''}`,
-                        stage,
-                      )
-                      updateInvestigation({
-                        bonusClueDrawn: true,
-                        bonusClueRank: resultRank,
-                      })
-                    }}
-                  />
+                  {jokerChoice?.context === 'bonus' ? (
+                    <JokerChoicePicker
+                      candidateClueSetIds={jokerChoice.candidateClueSetIds}
+                      onPick={handleResolveJoker}
+                    />
+                  ) : (
+                    <ClueDrawControl
+                      disabled={ui.bonusClueDrawn}
+                      onDraw={() =>
+                        handleClueDrawResult('bonus', m.drawClueCard(), 'Gained a bonus clue', false)
+                      }
+                      onManual={(rank, suit) =>
+                        handleClueDrawResult(
+                          'bonus',
+                          m.drawClueCardManual(rank, suit),
+                          'Gained a bonus clue',
+                          true,
+                        )
+                      }
+                    />
+                  )}
                   {ui.bonusClueRank && (
                     <ClueDrawnPreview
                       rank={ui.bonusClueRank}
@@ -1091,6 +1147,37 @@ function ClueDrawnPreview({
           onChange={(e) => setClueText(cs, e.target.value)}
           className="text-[11px]"
         />
+      </div>
+    </div>
+  )
+}
+
+// A drawn Joker (p.17) pauses the draw: pick a clue set to become a false
+// lead (all its cards discarded), then the draw control reappears to try
+// again — matching "discard the joker and the cards in the clue set, and
+// draw a new card".
+function JokerChoicePicker({
+  candidateClueSetIds,
+  onPick,
+}: {
+  candidateClueSetIds: string[]
+  onPick: (clueSetId: string) => void
+}) {
+  const m = useMysteryStore()
+  return (
+    <div className="space-y-1.5 bg-red-400/5 p-2.5 border border-red-400/30 rounded">
+      <div className="text-[11px] text-red-400">
+        Joker! Choose a clue set to become a false lead:
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {candidateClueSetIds.map((id) => {
+          const cs = m.clueSets[id]
+          return (
+            <SmallButton key={id} tone="red" onClick={() => onPick(id)}>
+              Clue {cs?.rank ?? id}
+            </SmallButton>
+          )
+        })}
       </div>
     </div>
   )

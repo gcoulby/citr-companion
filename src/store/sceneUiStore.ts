@@ -12,7 +12,7 @@ import type { Attribute, ClueRank, InvestigationStage, PlayingCard } from '../ga
 import type { AttributeTestResult, ConsequenceRollResult, InvestigationRollResult } from '../game/dice';
 import type { SubjectOracleResult } from '../game/oracles';
 
-export type SceneKind = 'investigation' | 'obligation' | 'truth' | 'rest';
+export type SceneKind = 'investigation' | 'obligation' | 'truth' | 'rest' | 'resolve';
 
 // Each log line is tagged with the stage it happened in (or `null` for
 // pre-stage events — the investigation roll's flavour text, threat naming) so
@@ -106,6 +106,13 @@ function emptyInvestigationUi(day: number, danger: number, fatigue: number, clue
 interface ObligationUiState { obligationId: string; text: string; struck: boolean }
 interface RestUiState { rolled: number | null; text: string }
 interface TruthUiState { clueSetId: string; drawn: PlayingCard[] | null; text: string; cardNotes: Record<string, string> }
+// The Solve (p.35-36): framingText covers "use the end of game trigger to
+// inform what this final scene could look like" (presenting the case,
+// a final showdown, etc) before any guessing starts; introDone gates that
+// framing step off from the guess/reveal/explain mechanics below it, which
+// otherwise live entirely on mysteryStore (sealed/revealed/resolved/
+// lingeringQuestion are real game state, not session-only UI).
+interface ResolveUiState { introDone: boolean; framingText: string }
 
 interface SceneUiStoreState {
   activeKind: SceneKind | null;
@@ -123,6 +130,10 @@ interface SceneUiStoreState {
   setTruth: (patch: Partial<TruthUiState>) => void;
   resetTruth: () => void;
 
+  resolve: ResolveUiState;
+  setResolve: (patch: Partial<ResolveUiState>) => void;
+  resetResolve: () => void;
+
   investigation: InvestigationUiState | null;
   startInvestigation: (day: number, danger: number, fatigue: number, clueCount: number) => void;
   updateInvestigation: (patch: Partial<InvestigationUiState>) => void;
@@ -134,6 +145,7 @@ interface SceneUiStoreState {
 const emptyObligation: ObligationUiState = { obligationId: '', text: '', struck: false };
 const emptyRest: RestUiState = { rolled: null, text: '' };
 const emptyTruth: TruthUiState = { clueSetId: '', drawn: null, text: '', cardNotes: {} };
+const emptyResolve: ResolveUiState = { introDone: false, framingText: '' };
 
 export const useSceneUiStore = create<SceneUiStoreState>((set) => ({
   activeKind: null,
@@ -150,6 +162,10 @@ export const useSceneUiStore = create<SceneUiStoreState>((set) => ({
   truth: emptyTruth,
   setTruth: (patch) => set((s) => ({ truth: { ...s.truth, ...patch } })),
   resetTruth: () => set({ truth: emptyTruth }),
+
+  resolve: emptyResolve,
+  setResolve: (patch) => set((s) => ({ resolve: { ...s.resolve, ...patch } })),
+  resetResolve: () => set({ resolve: emptyResolve }),
 
   investigation: null,
   startInvestigation: (day, danger, fatigue, clueCount) =>
