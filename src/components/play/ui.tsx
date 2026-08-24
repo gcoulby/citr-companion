@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pencil } from 'lucide-react';
+import { Pencil, Copy, Check } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
@@ -33,6 +33,26 @@ export function SmallButton({ children, onClick, disabled, tone = 'default' }: {
     <Button onClick={onClick} disabled={disabled} variant={variant} size="xs" className="text-[11px]">
       {children}
     </Button>
+  );
+}
+
+// A small clipboard button for a rolled result — briefly swaps to a
+// checkmark as the "little notice" that the copy happened, instead of a
+// separate toast.
+export function CopyButton({ text, className = '' }: { text: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => {
+        void navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1200);
+      }}
+      title="Copy to clipboard"
+      className={`text-muted-foreground/60 hover:text-primary transition-colors ${className}`}
+    >
+      {copied ? <Check size={11} /> : <Copy size={11} />}
+    </button>
   );
 }
 

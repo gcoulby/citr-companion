@@ -2,26 +2,39 @@ import { X } from 'lucide-react'
 import { InvestigatorTab } from './InvestigatorTab'
 import { MysteryTab } from './MysteryTab'
 import { DiceTab } from './DiceTab'
-import { ResolveTab } from './ResolveTab'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs'
 import { Button } from '../ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useIsMobile } from '../../hooks/use-mobile'
 
+// Resolving the mystery ("The Solve", p.35-36) lives in the Scene tab as
+// ResolveResolver — a full step-flow, not a sidebar tab — reached via the
+// "Resolve the mystery" option on Choose Your Scene, so it isn't duplicated
+// here.
 const TABS = [
   { id: 'investigator', label: 'Investigator' },
   { id: 'mystery', label: 'Mystery' },
   { id: 'dice', label: 'Dice & Oracles' },
-  { id: 'resolve', label: 'Resolve' },
 ] as const
+
+export type TabId = (typeof TABS)[number]['id']
 
 interface Props {
   onClose: () => void
   onSelectNode?: (nodeId: string) => void
+  initialTab?: TabId
 }
 
-export function PlayPanel({ onClose, onSelectNode }: Props) {
+export function PlayPanel({ onClose, onSelectNode, initialTab = 'mystery' }: Props) {
+  const isMobile = useIsMobile()
   return (
-    <div className="flex flex-col bg-card border-border border-l w-96 h-full overflow-hidden shrink-0">
+    <div
+      className={
+        isMobile
+          ? 'fixed inset-0 z-50 flex flex-col bg-card w-full h-full overflow-hidden'
+          : 'flex flex-col bg-card border-border border-l w-96 h-full overflow-hidden shrink-0'
+      }
+    >
       <div className="flex justify-between items-center px-4 py-2.5 border-border border-b shrink-0">
         <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
           Play
@@ -31,7 +44,7 @@ export function PlayPanel({ onClose, onSelectNode }: Props) {
         </Button>
       </div>
 
-      <Tabs defaultValue="mystery" className="flex-1 gap-0 min-h-0">
+      <Tabs defaultValue={initialTab} className="flex-1 gap-0 min-h-0">
         <TabsList
           variant="line"
           className="justify-stretch p-0 border-border border-b rounded-none w-full h-auto shrink-0"
@@ -57,9 +70,6 @@ export function PlayPanel({ onClose, onSelectNode }: Props) {
             </TabsContent>
             <TabsContent value="dice">
               <DiceTab />
-            </TabsContent>
-            <TabsContent value="resolve">
-              <ResolveTab />
             </TabsContent>
           </ScrollArea>
         </div>

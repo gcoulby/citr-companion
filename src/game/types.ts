@@ -75,6 +75,7 @@ export interface ThreatEntry {
   kind: ThreatKind;
   marks: number;
   defeated: boolean;
+  boardNodeId?: string; // linked GraphNode id, created automatically when the threat is introduced
 }
 
 export type InvestigationStage = 'infiltration' | 'discovery' | 'acquisition' | 'escape';
@@ -93,11 +94,15 @@ export interface MysteryProblem {
 
 export type ResolveQuestion = 'location' | 'object' | 'treachery';
 
+// Resolving the mystery (p.35-36): the 3 guesses are NOT positional — you
+// write down 3 card guesses as a set, reveal the 3 sealed cards as a set,
+// and however many guesses match (in any position) is how many of the fixed
+// questions (i/ii/iii, always starting from the first) you get to answer.
+// There is no "this guess was for the location" — `question` here only
+// records which physical card was sealed for which question at creation.
 export interface SealedTruth {
   question: ResolveQuestion;
   card: PlayingCard;
-  guessedClueSetId: string | null;
-  correct: boolean | null;
   answer: string;
 }
 
@@ -121,7 +126,9 @@ export interface Mystery {
   truthDeck: PlayingCard[];
   truthDiscard: PlayingCard[];
   sealed: SealedTruth[]; // exactly 3 once a mystery has been created, ordered [location, object, treachery]
+  guesses: { rank: TruthRank; suit: Suit }[]; // up to 3, written down as a set — not positional
   revealed: boolean; // becomes true only via the Resolve flow's reveal step
+  correctGuessCount: number | null; // computed at reveal — how many guesses matched a sealed card
   resolved: boolean;
   started: boolean;
   lingeringQuestion: string;

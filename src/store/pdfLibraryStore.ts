@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { PdfEmbed } from '../types';
 import { assetMap } from '../hooks/useAutoSave';
 import { invalidateAsset } from '../lib/assetCache';
+import { deletePdfBlobFromIDB } from '../file/fileHandle';
 
 interface PageJumpRequest {
   embedId: string;
@@ -74,6 +75,7 @@ export const usePdfLibraryStore = create<PdfLibraryState>((set, get) => ({
     if (embed) {
       assetMap.delete(embed.assetId);
       invalidateAsset(embed.assetId);
+      void deletePdfBlobFromIDB(embed.assetId);
     }
   },
 

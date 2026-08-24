@@ -47,7 +47,7 @@ export function PdfImportDialog({ open, onOpenChange }: PdfImportDialogProps) {
     setError('')
     setSizeWarning(
       picked.size > PDF_SIZE_WARNING_BYTES
-        ? `${picked.name} is large (${(picked.size / (1024 * 1024)).toFixed(1)}MB) — it will be embedded in the saved case file.`
+        ? `${picked.name} is large (${(picked.size / (1024 * 1024)).toFixed(1)}MB) — it'll be stored in this browser, separately from the case file.`
         : '',
     )
     setFile(picked)

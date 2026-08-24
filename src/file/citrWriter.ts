@@ -65,9 +65,9 @@ export async function writeCitr(opts: WriteOptions): Promise<Blob> {
   // Split mystery state: everything narrative/mechanical goes in mystery.json,
   // while the decks — including the 3 sealed truth cards — go in decks.json,
   // lightly obfuscated so they aren't plaintext when browsing the archive.
-  const { clueDeck, clueDiscard, truthDeck, truthDiscard, sealed, revealed, ...mysteryRest } = opts.mystery;
+  const { clueDeck, clueDiscard, truthDeck, truthDiscard, sealed, guesses, revealed, correctGuessCount, ...mysteryRest } = opts.mystery;
   zip.file('mystery.json', JSON.stringify(mysteryRest, null, 2));
-  zip.file('decks.json', obfuscate({ clueDeck, clueDiscard, truthDeck, truthDiscard, sealed, revealed }));
+  zip.file('decks.json', obfuscate({ clueDeck, clueDiscard, truthDeck, truthDiscard, sealed, guesses, revealed, correctGuessCount }));
 
   // Write dirty content blobs
   if (opts.contentDirty && opts.contentMap) {
@@ -79,12 +79,18 @@ export async function writeCitr(opts: WriteOptions): Promise<Blob> {
     }
   }
 
-  // Write assets — purge existing entries first so deletions take effect
+  // Write assets — purge existing entries first so deletions take effect.
+  // PDF embeds are deliberately excluded: their bytes live in this browser's
+  // IndexedDB (see usePdfImport / fileHandle's pdfBlobs store) so that a
+  // shared/exported .citr never bundles the PDF along with it. This also
+  // strips PDFs out of any older .citr file that still has them zipped in.
   if (opts.assetMap) {
+    const pdfAssetIds = new Set((opts.pdfEmbeds ?? []).map((e) => e.assetId));
     Object.keys(zip.files)
       .filter((p) => p.startsWith('assets/'))
       .forEach((p) => zip.remove(p));
     for (const [assetId, buffer] of opts.assetMap) {
+      if (pdfAssetIds.has(assetId)) continue;
       zip.file(`assets/${assetId}`, buffer);
     }
   }

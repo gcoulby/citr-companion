@@ -3,32 +3,35 @@ import { nanoid } from 'nanoid'
 import { pdfjsLib } from './pdfjsSetup'
 import { assetMap } from '../../hooks/useAutoSave'
 import { cacheAsset } from '../../lib/assetCache'
+import { savePdfBlobToIDB } from '../../file/fileHandle'
 import { usePdfLibraryStore } from '../../store/pdfLibraryStore'
 import type { PdfEmbed } from '../../types'
 
-/** Soft warning threshold — no hard cap, but everything lives in the saved
- *  .citr file going forward, so flag anything unusually large. */
+/** Soft warning threshold — no hard cap, but flag anything unusually large. */
 export const PDF_SIZE_WARNING_BYTES = 25 * 1024 * 1024
 
-/** Orchestrates the PDF import flow: cache the binary as an asset (same
- *  pipeline as node attachments / the map image), then create the `PdfEmbed`
- *  that makes it a tab. Full-document and single-page extraction share
- *  everything except which bytes get stored. */
+/** Orchestrates the PDF import flow: save the binary straight into this
+ *  browser's IndexedDB — deliberately *not* the assetMap/citrWriter pipeline
+ *  used for thumbnails and attachments, so the PDF is never bundled into the
+ *  saved .citr file and can't be redistributed by sharing the case — then
+ *  create the `PdfEmbed` that makes it a tab. Full-document and single-page
+ *  extraction share everything except which bytes get stored. */
 export function usePdfImport() {
   const addEmbed = usePdfLibraryStore((s) => s.addEmbed)
   const embeds = usePdfLibraryStore((s) => s.embeds)
 
-  function persistAndAddEmbed(
+  async function persistAndAddEmbed(
     bytes: Uint8Array,
     fileName: string,
     pageCount: number,
     mode: PdfEmbed['mode'],
     sourcePageIndex?: number,
-  ): PdfEmbed {
+  ): Promise<PdfEmbed> {
     const assetId = `pdf-${nanoid()}.pdf`
     const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
     assetMap.set(assetId, buffer)
     cacheAsset(assetId, buffer, 'application/pdf')
+    await savePdfBlobToIDB(assetId, buffer)
 
     const embed: PdfEmbed = {
       id: nanoid(),

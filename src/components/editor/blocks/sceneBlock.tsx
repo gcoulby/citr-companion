@@ -1,7 +1,7 @@
 import { createReactBlockSpec } from '@blocknote/react';
-import { Search, Gem, AlertTriangle, Moon, CircleDashed } from 'lucide-react';
+import { Search, Gem, AlertTriangle, Moon, CircleDashed, Award } from 'lucide-react';
 
-export type SceneType = 'investigation' | 'truth' | 'obligation' | 'rest' | 'other';
+export type SceneType = 'investigation' | 'truth' | 'obligation' | 'rest' | 'resolve' | 'other';
 export type InvestigationStageOrNone = '' | 'infiltration' | 'discovery' | 'acquisition' | 'escape';
 
 export const SCENE_TYPE_CONFIG: Record<SceneType, { label: string; icon: React.ReactNode; color: string }> = {
@@ -9,16 +9,15 @@ export const SCENE_TYPE_CONFIG: Record<SceneType, { label: string; icon: React.R
   truth:         { label: 'Truth',         icon: <Gem size={12} />,    color: 'text-yellow-300 bg-yellow-300/10 border-yellow-300/30' },
   obligation:    { label: 'Obligation',    icon: <AlertTriangle size={12} />, color: 'text-red-400 bg-red-400/10 border-red-400/30' },
   rest:          { label: 'Rest',          icon: <Moon size={12} />,   color: 'text-blue-400 bg-blue-400/10 border-blue-400/30' },
+  resolve:       { label: 'The Solve',     icon: <Award size={12} />,  color: 'text-purple-400 bg-purple-400/10 border-purple-400/30' },
   other:         { label: 'Scene',         icon: <CircleDashed size={12} />, color: 'text-muted-foreground bg-muted border-border' },
 };
-
-const STAGES: InvestigationStageOrNone[] = ['infiltration', 'discovery', 'acquisition', 'escape'];
 
 export const sceneBlockFactory = createReactBlockSpec(
   {
     type: 'scene',
     propSchema: {
-      sceneType: { default: 'other' as SceneType, values: ['investigation', 'truth', 'obligation', 'rest', 'other'] as const },
+      sceneType: { default: 'other' as SceneType, values: ['investigation', 'truth', 'obligation', 'rest', 'resolve', 'other'] as const },
       stage: { default: '' as InvestigationStageOrNone, values: ['', 'infiltration', 'discovery', 'acquisition', 'escape'] as const },
       day: { default: 0 },
       danger: { default: 0 },
@@ -41,15 +40,13 @@ export const sceneBlockFactory = createReactBlockSpec(
                 <option key={t} value={t}>{SCENE_TYPE_CONFIG[t].label}</option>
               ))}
             </select>
-            {block.props.sceneType === 'investigation' && (
-              <select
-                value={block.props.stage}
-                onChange={(e) => editor.updateBlock(block, { props: { ...block.props, stage: e.target.value as InvestigationStageOrNone } })}
-                className="px-1.5 py-0.5 rounded border border-border bg-background text-[10px] font-mono text-muted-foreground"
-              >
-                <option value="">no stage</option>
-                {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+            {block.props.sceneType === 'investigation' && block.props.stage && (
+              // Legacy documents only — current saves show the full
+              // stage-by-stage breakdown in the investigationRecord block
+              // below instead of a single editable "ended at" dropdown.
+              <span className="px-1.5 py-0.5 rounded border border-border bg-background text-[10px] font-mono text-muted-foreground">
+                {block.props.stage}
+              </span>
             )}
             <span className="text-[10px] font-mono text-muted-foreground/60">
               Day {block.props.day} · Danger {block.props.danger}

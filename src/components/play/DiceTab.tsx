@@ -10,7 +10,7 @@ import {
 } from '../../game/oracles';
 import { GENRE_TABLES } from '../../game/genreTables';
 import { useSettingsStore } from '../../store/settingsStore';
-import { SectionLabel, SmallButton, DiceRoller } from './ui';
+import { SectionLabel, SmallButton, DiceRoller, CopyButton } from './ui';
 
 const YES_NO_LABEL: Record<YesNoOutcome, string> = {
   extremeNo: 'Extreme No', no: 'No', yes: 'Yes', extremeYes: 'Extreme Yes',
@@ -23,9 +23,12 @@ function OracleRow({ table, result, onRoll }: { table: OracleTable; result: Orac
     <div className="flex items-center gap-2">
       <SmallButton onClick={onRoll}>{table.name}</SmallButton>
       {result && (
-        <span className="text-[11px] text-foreground font-mono">
-          {result.result} <span className="text-muted-foreground/70">({result.roll.value})</span>
-        </span>
+        <>
+          <span className="text-[11px] text-foreground font-mono">
+            {result.result} <span className="text-muted-foreground/70">({result.roll.value})</span>
+          </span>
+          <CopyButton text={result.result} />
+        </>
       )}
     </div>
   );
@@ -88,10 +91,11 @@ export function DiceTab() {
           <SmallButton onClick={() => setSubject(rollSubjectOracle())}>Roll 3 words</SmallButton>
         </div>
         {subject && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <span className="px-2 py-1 rounded bg-background border border-border text-[11px] text-foreground font-mono">{subject.action.result}</span>
             <span className="px-2 py-1 rounded bg-background border border-border text-[11px] text-foreground font-mono">{subject.descriptor.result}</span>
             <span className="px-2 py-1 rounded bg-background border border-border text-[11px] text-foreground font-mono">{subject.focus.result}</span>
+            <CopyButton text={`${subject.action.result} ${subject.descriptor.result} ${subject.focus.result}`} />
           </div>
         )}
         <div className="text-[10px] text-muted-foreground/40 mt-2 leading-relaxed">
@@ -106,7 +110,12 @@ export function DiceTab() {
           <OracleRow table={LAST_NAME_TABLE} result={results[LAST_NAME_TABLE.id] ?? null} onRoll={() => roll(LAST_NAME_TABLE)} />
           <div className="flex items-center gap-2">
             <SmallButton onClick={() => setFullName(rollFullName().name)}>Invented name</SmallButton>
-            {fullName && <span className="text-[11px] text-foreground font-mono">{fullName}</span>}
+            {fullName && (
+              <>
+                <span className="text-[11px] text-foreground font-mono">{fullName}</span>
+                <CopyButton text={fullName} />
+              </>
+            )}
           </div>
           <OracleRow table={TRAIT_TABLE} result={results[TRAIT_TABLE.id] ?? null} onRoll={() => roll(TRAIT_TABLE)} />
           <OracleRow table={MOTIVATION_TABLE} result={results[MOTIVATION_TABLE.id] ?? null} onRoll={() => roll(MOTIVATION_TABLE)} />

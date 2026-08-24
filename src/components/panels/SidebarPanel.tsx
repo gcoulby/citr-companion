@@ -31,6 +31,7 @@ import {
 } from '../ui/collapsible'
 import { Button } from '../ui/button'
 import type { NodeType } from '../../types'
+import { useIsMobile } from '../../hooks/use-mobile'
 
 interface Props {
   activeTag: string | null
@@ -82,6 +83,7 @@ export function SidebarPanel({
   onAddNode,
   selectedNodeId,
 }: Props) {
+  const isMobile = useIsMobile()
   const nodes = useGraphStore((s) => s.nodes)
   const edges = useGraphStore((s) => s.edges)
   const manifest = useFileStore((s) => s.manifest)
@@ -135,7 +137,11 @@ export function SidebarPanel({
   return (
     <Sidebar
       collapsible="none"
-      className="border-border border-r w-55 h-full shrink-0"
+      className={
+        isMobile
+          ? 'fixed inset-0 z-50 w-full h-full'
+          : 'border-border border-r w-55 h-full shrink-0'
+      }
     >
       {/* Case header */}
       <SidebarHeader className="gap-1 px-4 py-3.5 border-border border-b">

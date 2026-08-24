@@ -37,11 +37,26 @@ interface InvestigatorStoreState extends Investigator {
   /** Rolls 1d6, clears that many fatigue boxes, clears all attribute strikes
    *  and signature-keyword strikes. Returns the roll. */
   rest: () => number;
+  /** Same as `rest()`, but for a roll made with physical dice instead of the
+   *  app's own RNG — applies the identical clearing effects. */
+  restManual: (roll: number) => number;
   load: (data: Investigator) => void;
   reset: () => void;
 }
 
-export const useInvestigatorStore = create<InvestigatorStoreState>((set) => ({
+export const useInvestigatorStore = create<InvestigatorStoreState>((set) => {
+  // Shared by rest()/restManual() so the digital and physical-dice paths can
+  // never drift apart on what clearing a rest actually does.
+  function applyRest(cleared: number): number {
+    set((s) => ({
+      fatigue: Math.max(0, s.fatigue - cleared),
+      struckAttributes: [],
+      keywords: s.keywords.map((k) => (k.signature ? { ...k, struck: false } : k)),
+    }));
+    return cleared;
+  }
+
+  return {
   ...emptyInvestigator(),
 
   setName: (name) => set({ name }),
@@ -88,16 +103,10 @@ export const useInvestigatorStore = create<InvestigatorStoreState>((set) => ({
   removeKeyword: (id) => set((s) => ({ keywords: s.keywords.filter((k) => k.id !== id) })),
   useKeyword: (id) => set((s) => ({ keywords: s.keywords.map((k) => (k.id === id ? { ...k, struck: true } : k)) })),
 
-  rest: () => {
-    const cleared = rollRest();
-    set((s) => ({
-      fatigue: Math.max(0, s.fatigue - cleared),
-      struckAttributes: [],
-      keywords: s.keywords.map((k) => (k.signature ? { ...k, struck: false } : k)),
-    }));
-    return cleared;
-  },
+  rest: () => applyRest(rollRest()),
+  restManual: (roll) => applyRest(roll),
 
   load: (data) => set({ ...data }),
   reset: () => set(emptyInvestigator()),
-}));
+  };
+});

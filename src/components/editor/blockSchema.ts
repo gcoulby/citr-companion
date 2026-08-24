@@ -4,6 +4,8 @@ import { beatBlockFactory } from './blocks/beatBlock';
 import { resolveBlockFactory } from './blocks/resolveBlock';
 import { snapshotBlockFactory } from './blocks/snapshotBlock';
 import { rollBlockFactory } from './blocks/rollBlock';
+import { truthRecordBlockFactory } from './blocks/truthRecordBlock';
+import { investigationRecordBlockFactory } from './blocks/investigationRecordBlock';
 import { nodeMentionSpec } from './blocks/nodeMention';
 
 // Shared by every BlockNote document in the app (Case Notes and per-node
@@ -17,6 +19,8 @@ export const citrSchema = BlockNoteSchema.create({
     resolve: resolveBlockFactory(),
     snapshot: snapshotBlockFactory(),
     roll: rollBlockFactory(),
+    truthRecord: truthRecordBlockFactory(),
+    investigationRecord: investigationRecordBlockFactory(),
   },
   inlineContentSpecs: {
     ...defaultInlineContentSpecs,

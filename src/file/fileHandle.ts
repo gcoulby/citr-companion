@@ -7,10 +7,11 @@ const IDB_NAME = 'citr-companion-v1';
 const IDB_STORE = 'handles';
 const IDB_CASES_STORE = 'cases';
 const IDB_BLOBS_STORE = 'caseBlobs';
+const IDB_PDFS_STORE = 'pdfBlobs';
 
 function openIDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(IDB_NAME, 3);
+    const req = indexedDB.open(IDB_NAME, 4);
     req.onupgradeneeded = (e) => {
       if (!req.result.objectStoreNames.contains(IDB_STORE)) req.result.createObjectStore(IDB_STORE);
       if (e.oldVersion < 2 && !req.result.objectStoreNames.contains(IDB_CASES_STORE)) {
@@ -18,6 +19,9 @@ function openIDB(): Promise<IDBDatabase> {
       }
       if (e.oldVersion < 3 && !req.result.objectStoreNames.contains(IDB_BLOBS_STORE)) {
         req.result.createObjectStore(IDB_BLOBS_STORE);
+      }
+      if (e.oldVersion < 4 && !req.result.objectStoreNames.contains(IDB_PDFS_STORE)) {
+        req.result.createObjectStore(IDB_PDFS_STORE);
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -107,6 +111,45 @@ export async function deleteCaseBlobFromIDB(id: string): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(IDB_BLOBS_STORE, 'readwrite');
       tx.objectStore(IDB_BLOBS_STORE).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    // ignore
+  }
+}
+
+// ── IDB-stored PDF binaries (kept out of the .citr file entirely) ────────────
+// Imported PDFs (rulebooks, handouts) are saved here, keyed by assetId, so
+// that sharing/exporting a .citr case never bundles the PDF along with it —
+// see PdfEmbed / usePdfImport for why that separation matters.
+
+export async function savePdfBlobToIDB(assetId: string, buffer: ArrayBuffer): Promise<void> {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_PDFS_STORE, 'readwrite');
+    tx.objectStore(IDB_PDFS_STORE).put(buffer, assetId);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getPdfBlobFromIDB(assetId: string): Promise<ArrayBuffer | null> {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_PDFS_STORE, 'readonly');
+    const req = tx.objectStore(IDB_PDFS_STORE).get(assetId);
+    req.onsuccess = () => resolve((req.result as ArrayBuffer) ?? null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deletePdfBlobFromIDB(assetId: string): Promise<void> {
+  try {
+    const db = await openIDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_PDFS_STORE, 'readwrite');
+      tx.objectStore(IDB_PDFS_STORE).delete(assetId);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });

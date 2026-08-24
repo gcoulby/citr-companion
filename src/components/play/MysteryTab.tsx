@@ -6,7 +6,7 @@ import { useCanvasStore } from '../../store/canvasStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import {
   ATTRIBUTES, CLUE_RANKS, SUITS,
-  type Attribute, type ClueStatus, type ClueRank, type Suit, type PlayingCard,
+  type Attribute, type ClueStatus, type ClueRank, type ClueSet, type Suit, type PlayingCard,
 } from '../../game/types';
 import type { AttributeTestResult, InvestigationRollResult, ConsequenceRollResult } from '../../game/dice';
 import { SectionLabel, Badge, SmallButton, TextInput, TextArea, DiceRoller } from './ui';
@@ -14,7 +14,8 @@ import { PlayingCardView } from './PlayingCard';
 import { ClueTable } from './ClueTable';
 import { Pencil, Dices, ArrowUpRight } from 'lucide-react';
 import { rollOracleTable, MOTIVATION_TABLE, TREACHERY_TABLE } from '../../game/oracles';
-import { GENRE_TABLES } from '../../game/genreTables';
+import { GENRE_TABLES, type GenreTableSet } from '../../game/genreTables';
+import { useClueText, setClueText } from '../../lib/clueText';
 
 const ATTRIBUTE_LABELS: Record<Attribute, string> = { power: 'Power', insight: 'Insight', method: 'Method' };
 const CLUE_STATUS_TONE: Record<ClueStatus, 'default' | 'amber' | 'gold' | 'red'> = {
@@ -25,7 +26,7 @@ const SUIT_SYMBOL: Record<Suit, string> = { hearts: '♥', diamonds: '♦', club
 // A "Draw clue" trigger that also supports physical play: the pencil icon
 // reveals a rank/suit picker so a player who drew from a real deck can tell
 // the app what came up instead of it popping its own digital deck.
-function ClueDrawControl({ onDraw, onManual, disabled }: {
+export function ClueDrawControl({ onDraw, onManual, disabled }: {
   onDraw: () => void;
   onManual: (rank: ClueRank | 'JOKER', suit?: Suit) => void;
   disabled?: boolean;
@@ -62,6 +63,67 @@ function ClueDrawControl({ onDraw, onManual, disabled }: {
       )}
       <SmallButton onClick={() => { onManual(rank, rank === 'JOKER' ? undefined : suit); setManual(false); }}>Use</SmallButton>
       <button onClick={() => setManual(false)} className="text-muted-foreground/50 hover:text-foreground text-[10px] px-0.5">✕</button>
+    </div>
+  );
+}
+
+// One row in the Clue sets list — its own component (not inlined in a
+// .map()) so it can call the useClueText hook per clue set.
+function ClueSetRow({ cs, genreTables, onSelectNode, onAddToBoard }: {
+  cs: ClueSet;
+  genreTables: GenreTableSet;
+  onSelectNode?: (nodeId: string) => void;
+  onAddToBoard: () => void;
+}) {
+  const text = useClueText(cs);
+  return (
+    <div className="p-2 rounded border border-border bg-background">
+      <div className="flex items-start gap-2 mb-1.5">
+        {cs.cards.length > 0 && (
+          <PlayingCardView
+            card={cs.cards[cs.cards.length - 1]}
+            suits={cs.cards.map((c) => c.suit).filter((s): s is Suit => s !== null)}
+            size="sm"
+          />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="text-[11px] font-mono text-foreground">Clue {cs.rank}</span>
+            <Badge tone={CLUE_STATUS_TONE[cs.status]}>{cs.status}</Badge>
+            <span className="text-[9px] text-muted-foreground/70">{cs.cards.length} card{cs.cards.length === 1 ? '' : 's'}</span>
+            <button
+              onClick={() => {
+                const word = rollOracleTable(genreTables.clues).result;
+                setClueText(cs, text ? `${text} — ${word}` : word);
+              }}
+              title="Roll a clue word for inspiration"
+              className="ml-auto text-muted-foreground/60 hover:text-primary transition-colors"
+            >
+              <Dices size={11} />
+            </button>
+          </div>
+          {/* Same text as the board node's own summary once one exists (see
+              lib/clueText.ts) — editing here or on the node updates the
+              other, so there's a single place that owns the clue's content. */}
+          <TextArea rows={2} value={text}
+            placeholder="What is this clue?"
+            onChange={(e) => setClueText(cs, e.target.value)}
+            className="text-[11px]" />
+        </div>
+      </div>
+      {cs.boardNodeId ? (
+        <div className="flex items-center gap-2">
+          <Badge tone="green">on board</Badge>
+          <button
+            onClick={() => cs.boardNodeId && onSelectNode?.(cs.boardNodeId)}
+            className="flex items-center gap-0.5 text-[11px] text-primary hover:underline"
+          >
+            Edit clue <ArrowUpRight size={11} />
+          </button>
+        </div>
+      ) : (
+        <SmallButton onClick={onAddToBoard}>Add to board</SmallButton>
+      )}
     </div>
   );
 }
@@ -252,10 +314,12 @@ export function MysteryTab({ onSelectNode }: MysteryTabProps) {
     if (cs.boardNodeId) addEdge({ source: cs.boardNodeId, target: truthNode.id, label: 'confirms' });
   };
 
+  // Fallback for threats from before board nodes were created automatically
+  // on introduction — new threats no longer need this.
   const handleAddThreatToBoard = (threatId: string) => {
     const t = m.threats.find((x) => x.id === threatId);
-    if (!t) return;
-    addNode({
+    if (!t || t.boardNodeId) return;
+    const node = addNode({
       label: t.name,
       summary: '',
       tags: [],
@@ -264,6 +328,7 @@ export function MysteryTab({ onSelectNode }: MysteryTabProps) {
       nodeType: 'threat',
       threat: { threatId: t.id, level: t.level, kind: t.kind, defeated: t.defeated },
     });
+    m.updateThreat(threatId, { boardNodeId: node.id });
   };
 
   return (
@@ -362,7 +427,7 @@ export function MysteryTab({ onSelectNode }: MysteryTabProps) {
             <SmallButton onClick={() => setObligationChoice(inv.obligations.find((o) => !o.struck)?.id ?? '')} disabled={inv.obligations.every((o) => o.struck) || inv.obligations.length === 0}>
               Obligation
             </SmallButton>
-            <SmallButton onClick={() => setRestNotice(m.runRestScene())}>Rest</SmallButton>
+            <SmallButton onClick={() => { setRestNotice(m.runRestScene()); const r = m.endScene(); setNewDayNotice(r.newDay); }}>Rest</SmallButton>
           </div>
           {restNotice !== null && (
             <div className="mt-2 text-[11px] text-muted-foreground">Cleared {restNotice} fatigue, strikes cleared, discarded a clue card.</div>
@@ -475,6 +540,8 @@ export function MysteryTab({ onSelectNode }: MysteryTabProps) {
           <SmallButton onClick={() => {
             const drawn = m.runTruthScene(truthSceneClue);
             setTruthDrawn(drawn ?? null);
+            const r = m.endScene();
+            setNewDayNotice(r.newDay);
           }}>Rotate &amp; draw truth cards</SmallButton>
           {truthDrawn && (
             <div className="space-y-1.5">
@@ -496,7 +563,7 @@ export function MysteryTab({ onSelectNode }: MysteryTabProps) {
             className="w-full bg-background border border-border rounded px-2 py-1 text-[11px] text-foreground">
             {inv.obligations.filter((o) => !o.struck).map((o) => <option key={o.id} value={o.id}>{o.text}</option>)}
           </select>
-          <SmallButton onClick={() => { m.runObligationScene(obligationChoice); setObligationChoice(''); }}>Attend to it</SmallButton>
+          <SmallButton onClick={() => { m.runObligationScene(obligationChoice); setObligationChoice(''); const r = m.endScene(); setNewDayNotice(r.newDay); }}>Attend to it</SmallButton>
         </div>
       )}
 
@@ -510,56 +577,13 @@ export function MysteryTab({ onSelectNode }: MysteryTabProps) {
         <div className="space-y-2">
           {clueSetList.length === 0 && <div className="text-[11px] text-muted-foreground/40">No clues yet</div>}
           {clueSetList.map((cs) => (
-            <div key={cs.id} className="p-2 rounded border border-border bg-background">
-              <div className="flex items-start gap-2 mb-1.5">
-                {cs.cards.length > 0 && (
-                  <PlayingCardView
-                    card={cs.cards[cs.cards.length - 1]}
-                    suits={cs.cards.map((c) => c.suit).filter((s): s is Suit => s !== null)}
-                    size="sm"
-                  />
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-[11px] font-mono text-foreground">Clue {cs.rank}</span>
-                    <Badge tone={CLUE_STATUS_TONE[cs.status]}>{cs.status}</Badge>
-                    <span className="text-[9px] text-muted-foreground/70">{cs.cards.length} card{cs.cards.length === 1 ? '' : 's'}</span>
-                    <button
-                      onClick={() => {
-                        const word = rollOracleTable(genreTables.clues).result;
-                        m.setClueDescription(cs.rank, cs.description ? `${cs.description} — ${word}` : word);
-                      }}
-                      title="Roll a clue word for inspiration"
-                      className="ml-auto text-muted-foreground/60 hover:text-primary transition-colors"
-                    >
-                      <Dices size={11} />
-                    </button>
-                  </div>
-                  {/* Free scratch notes, independent of the board node's own
-                      text once one exists — editing here never overwrites
-                      it, so there's a single place ("Edit clue" below) that
-                      owns the node's real content instead of two drifting
-                      copies. */}
-                  <TextArea rows={2} value={cs.description}
-                    placeholder={cs.boardNodeId ? 'Quick notes (not shown on the node)…' : 'What is this clue?'}
-                    onChange={(e) => m.setClueDescription(cs.rank, e.target.value)}
-                    className="text-[11px]" />
-                </div>
-              </div>
-              {cs.boardNodeId ? (
-                <div className="flex items-center gap-2">
-                  <Badge tone="green">on board</Badge>
-                  <button
-                    onClick={() => cs.boardNodeId && onSelectNode?.(cs.boardNodeId)}
-                    className="flex items-center gap-0.5 text-[11px] text-primary hover:underline"
-                  >
-                    Edit clue <ArrowUpRight size={11} />
-                  </button>
-                </div>
-              ) : (
-                <SmallButton onClick={() => handleAddClueToBoard(cs.rank)}>Add to board</SmallButton>
-              )}
-            </div>
+            <ClueSetRow
+              key={cs.id}
+              cs={cs}
+              genreTables={genreTables}
+              onSelectNode={onSelectNode}
+              onAddToBoard={() => handleAddClueToBoard(cs.rank)}
+            />
           ))}
         </div>
       </div>
@@ -595,7 +619,16 @@ export function MysteryTab({ onSelectNode }: MysteryTabProps) {
                   <Dices size={11} />
                 </button>
                 <Badge tone={t.defeated ? 'default' : t.kind === 'rival' ? 'red' : 'default'}>L{t.level}</Badge>
-                <SmallButton onClick={() => handleAddThreatToBoard(t.id)}>Add to board</SmallButton>
+                {t.boardNodeId ? (
+                  <button
+                    onClick={() => t.boardNodeId && onSelectNode?.(t.boardNodeId)}
+                    className="text-primary hover:underline"
+                  >
+                    on board
+                  </button>
+                ) : (
+                  <SmallButton onClick={() => handleAddThreatToBoard(t.id)}>Add to board</SmallButton>
+                )}
               </div>
             ))}
           </div>
