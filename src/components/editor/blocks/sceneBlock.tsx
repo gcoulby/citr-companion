@@ -12,8 +12,6 @@ export const SCENE_TYPE_CONFIG: Record<SceneType, { label: string; icon: React.R
   other:         { label: 'Scene',         icon: <CircleDashed size={12} />, color: 'text-muted-foreground bg-muted border-border' },
 };
 
-const STAGES: InvestigationStageOrNone[] = ['infiltration', 'discovery', 'acquisition', 'escape'];
-
 export const sceneBlockFactory = createReactBlockSpec(
   {
     type: 'scene',
@@ -41,15 +39,13 @@ export const sceneBlockFactory = createReactBlockSpec(
                 <option key={t} value={t}>{SCENE_TYPE_CONFIG[t].label}</option>
               ))}
             </select>
-            {block.props.sceneType === 'investigation' && (
-              <select
-                value={block.props.stage}
-                onChange={(e) => editor.updateBlock(block, { props: { ...block.props, stage: e.target.value as InvestigationStageOrNone } })}
-                className="px-1.5 py-0.5 rounded border border-border bg-background text-[10px] font-mono text-muted-foreground"
-              >
-                <option value="">no stage</option>
-                {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+            {block.props.sceneType === 'investigation' && block.props.stage && (
+              // Legacy documents only — current saves show the full
+              // stage-by-stage breakdown in the investigationRecord block
+              // below instead of a single editable "ended at" dropdown.
+              <span className="px-1.5 py-0.5 rounded border border-border bg-background text-[10px] font-mono text-muted-foreground">
+                {block.props.stage}
+              </span>
             )}
             <span className="text-[10px] font-mono text-muted-foreground/60">
               Day {block.props.day} · Danger {block.props.danger}

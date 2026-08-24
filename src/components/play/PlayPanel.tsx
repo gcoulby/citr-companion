@@ -15,12 +15,15 @@ const TABS = [
   { id: 'resolve', label: 'Resolve' },
 ] as const
 
+export type TabId = (typeof TABS)[number]['id']
+
 interface Props {
   onClose: () => void
   onSelectNode?: (nodeId: string) => void
+  initialTab?: TabId
 }
 
-export function PlayPanel({ onClose, onSelectNode }: Props) {
+export function PlayPanel({ onClose, onSelectNode, initialTab = 'mystery' }: Props) {
   const isMobile = useIsMobile()
   return (
     <div
@@ -39,7 +42,7 @@ export function PlayPanel({ onClose, onSelectNode }: Props) {
         </Button>
       </div>
 
-      <Tabs defaultValue="mystery" className="flex-1 gap-0 min-h-0">
+      <Tabs defaultValue={initialTab} className="flex-1 gap-0 min-h-0">
         <TabsList
           variant="line"
           className="justify-stretch p-0 border-border border-b rounded-none w-full h-auto shrink-0"

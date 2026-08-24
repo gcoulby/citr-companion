@@ -91,10 +91,12 @@ import {
   Map,
   FileStack,
   Heart,
+  Clapperboard,
 } from 'lucide-react'
 import { SaveIndicator } from './components/SaveIndicator'
 import type { CaseManifest, NodeType, DocumentRef } from './types'
-import { PlayPanel } from './components/play/PlayPanel'
+import { PlayPanel, type TabId as PlayTabId } from './components/play/PlayPanel'
+import { SceneView } from './components/scene/SceneView'
 import { useIsMobile, useIsMobileOrTabletDevice } from './hooks/use-mobile'
 import {
   DropdownMenu,
@@ -107,7 +109,7 @@ import { MoreVertical } from 'lucide-react'
 
 // ── Toolbar ──────────────────────────────────────────────────────────────────
 
-type MainView = 'board' | 'notes' | 'map' | 'pdf'
+type MainView = 'board' | 'notes' | 'map' | 'pdf' | 'scene'
 
 interface ToolbarProps {
   onSearch: () => void
@@ -119,6 +121,7 @@ interface ToolbarProps {
   onCaseNotes: () => void
   onMap: () => void
   onPdfView: () => void
+  onScene: () => void
   onSettings: () => void
   onCloseCase: () => void
   onExport: () => void
@@ -170,6 +173,7 @@ function Toolbar({
   onCaseNotes,
   onMap,
   onPdfView,
+  onScene,
   onSettings,
   onCloseCase,
   onExport,
@@ -196,6 +200,12 @@ function Toolbar({
           title="Case Notes"
           icon={<NotebookPen size={16} />}
           active={activeView === 'notes'}
+        />
+        <ToolbarButton
+          onClick={onScene}
+          title="Scene"
+          icon={<Clapperboard size={16} />}
+          active={activeView === 'scene'}
         />
         <ToolbarButton
           onClick={onMap}
@@ -285,6 +295,13 @@ function Toolbar({
         icon={<NotebookPen size={12} />}
         label="Notes"
         active={activeView === 'notes'}
+      />
+      <ToolbarButton
+        onClick={onScene}
+        title="Scene — walk through the flow of play"
+        icon={<Clapperboard size={12} />}
+        label="Scene"
+        active={activeView === 'scene'}
       />
       <ToolbarButton
         onClick={onMap}
@@ -410,8 +427,10 @@ function AppInner() {
   const [showAcknowledgements, setShowAcknowledgements] = useState(false)
   const [showFiles, setShowFiles] = useState(false)
   const [showPlay, setShowPlay] = useState(false)
+  const [playInitialTab, setPlayInitialTab] = useState<PlayTabId>('mystery')
   const [showMapView, setShowMapView] = useState(false)
   const [showPdfView, setShowPdfView] = useState(false)
+  const [showScene, setShowScene] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<NodeType | null>(null)
@@ -1001,26 +1020,36 @@ function AppInner() {
           setEditorRef(null)
           setShowMapView(false)
           setShowPdfView(false)
+          setShowScene(false)
         }}
         onCaseNotes={() => {
           setShowMapView(false)
           setShowPdfView(false)
+          setShowScene(false)
           setEditorRef((r) => (r?.kind === 'case' ? null : { kind: 'case' }))
         }}
         onMap={() => {
           setEditorRef(null)
           setShowPdfView(false)
+          setShowScene(false)
           setShowMapView((v) => !v)
         }}
         onPdfView={() => {
           setEditorRef(null)
           setShowMapView(false)
+          setShowScene(false)
           setShowPdfView((v) => !v)
+        }}
+        onScene={() => {
+          setEditorRef(null)
+          setShowMapView(false)
+          setShowPdfView(false)
+          setShowScene((v) => !v)
         }}
         onSettings={() => setShowSettings(true)}
         onCloseCase={handleCloseCase}
         onExport={() => void handleExport()}
-        activeView={editorRef ? 'notes' : showMapView ? 'map' : showPdfView ? 'pdf' : 'board'}
+        activeView={editorRef ? 'notes' : showMapView ? 'map' : showPdfView ? 'pdf' : showScene ? 'scene' : 'board'}
       />
 
       {editorRef ? (
@@ -1034,6 +1063,7 @@ function AppInner() {
               <PlayPanel
                 onClose={() => setShowPlay(false)}
                 onSelectNode={handleSelectNodeFromPlay}
+                initialTab={playInitialTab}
               />
             </div>
           )}
@@ -1046,6 +1076,7 @@ function AppInner() {
               <PlayPanel
                 onClose={() => setShowPlay(false)}
                 onSelectNode={handleSelectNodeFromPlay}
+                initialTab={playInitialTab}
               />
             </div>
           )}
@@ -1084,6 +1115,36 @@ function AppInner() {
               <PlayPanel
                 onClose={() => setShowPlay(false)}
                 onSelectNode={handleSelectNodeFromPlay}
+                initialTab={playInitialTab}
+              />
+            </div>
+          )}
+        </div>
+      ) : showScene ? (
+        <div className="relative flex flex-1 min-h-0 overflow-hidden">
+          <SceneView
+            onSaved={() => {
+              setShowMapView(false)
+              setShowPdfView(false)
+              setShowScene(false)
+              setEditorRef({ kind: 'case' })
+            }}
+            onOpenResolve={() => {
+              setPlayInitialTab('resolve')
+              setShowPlay(true)
+            }}
+            onOpenDiceOracles={() => {
+              setPlayInitialTab('dice')
+              setShowPlay(true)
+            }}
+            onOpenPlay={() => setShowPlay(true)}
+          />
+          {showPlay && (
+            <div className="top-0 right-0 bottom-0 z-60 absolute shadow-2xl">
+              <PlayPanel
+                onClose={() => setShowPlay(false)}
+                onSelectNode={handleSelectNodeFromPlay}
+                initialTab={playInitialTab}
               />
             </div>
           )}
@@ -1156,6 +1217,7 @@ function AppInner() {
             <PlayPanel
               onClose={() => setShowPlay(false)}
               onSelectNode={handleSelectNodeFromPlay}
+              initialTab={playInitialTab}
             />
           )}
         </SidebarProvider>

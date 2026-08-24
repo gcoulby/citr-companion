@@ -99,6 +99,7 @@ interface MysteryStoreState extends Mystery {
   runTruthScene: (clueSetId: string) => Mystery['truthDeck'] | null;
   runObligationScene: (obligationId: string) => void;
   runRestScene: () => number;
+  runRestSceneManual: (roll: number) => number;
 
   // ── Clock / day ────────────────────────────────────────────────────────
   endScene: () => { newDay: boolean };
@@ -454,6 +455,12 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => {
 
   runRestScene: () => {
     const cleared = useInvestigatorStore.getState().rest();
+    get().discardClueCard();
+    return cleared;
+  },
+
+  runRestSceneManual: (roll) => {
+    const cleared = useInvestigatorStore.getState().restManual(roll);
     get().discardClueCard();
     return cleared;
   },

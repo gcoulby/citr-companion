@@ -25,7 +25,7 @@ const SUIT_SYMBOL: Record<Suit, string> = { hearts: '♥', diamonds: '♦', club
 // A "Draw clue" trigger that also supports physical play: the pencil icon
 // reveals a rank/suit picker so a player who drew from a real deck can tell
 // the app what came up instead of it popping its own digital deck.
-function ClueDrawControl({ onDraw, onManual, disabled }: {
+export function ClueDrawControl({ onDraw, onManual, disabled }: {
   onDraw: () => void;
   onManual: (rank: ClueRank | 'JOKER', suit?: Suit) => void;
   disabled?: boolean;
@@ -362,7 +362,7 @@ export function MysteryTab({ onSelectNode }: MysteryTabProps) {
             <SmallButton onClick={() => setObligationChoice(inv.obligations.find((o) => !o.struck)?.id ?? '')} disabled={inv.obligations.every((o) => o.struck) || inv.obligations.length === 0}>
               Obligation
             </SmallButton>
-            <SmallButton onClick={() => setRestNotice(m.runRestScene())}>Rest</SmallButton>
+            <SmallButton onClick={() => { setRestNotice(m.runRestScene()); const r = m.endScene(); setNewDayNotice(r.newDay); }}>Rest</SmallButton>
           </div>
           {restNotice !== null && (
             <div className="mt-2 text-[11px] text-muted-foreground">Cleared {restNotice} fatigue, strikes cleared, discarded a clue card.</div>
@@ -475,6 +475,8 @@ export function MysteryTab({ onSelectNode }: MysteryTabProps) {
           <SmallButton onClick={() => {
             const drawn = m.runTruthScene(truthSceneClue);
             setTruthDrawn(drawn ?? null);
+            const r = m.endScene();
+            setNewDayNotice(r.newDay);
           }}>Rotate &amp; draw truth cards</SmallButton>
           {truthDrawn && (
             <div className="space-y-1.5">
@@ -496,7 +498,7 @@ export function MysteryTab({ onSelectNode }: MysteryTabProps) {
             className="w-full bg-background border border-border rounded px-2 py-1 text-[11px] text-foreground">
             {inv.obligations.filter((o) => !o.struck).map((o) => <option key={o.id} value={o.id}>{o.text}</option>)}
           </select>
-          <SmallButton onClick={() => { m.runObligationScene(obligationChoice); setObligationChoice(''); }}>Attend to it</SmallButton>
+          <SmallButton onClick={() => { m.runObligationScene(obligationChoice); setObligationChoice(''); const r = m.endScene(); setNewDayNotice(r.newDay); }}>Attend to it</SmallButton>
         </div>
       )}
 
