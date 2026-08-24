@@ -27,6 +27,8 @@ import {
   saveHandleToIDB,
   saveCaseBlobToIDB,
   getCaseBlobFromIDB,
+  savePdfBlobToIDB,
+  getPdfBlobFromIDB,
   listCases,
   upsertCaseEntry,
   removeCaseEntry,
@@ -43,6 +45,7 @@ import { PasswordDialog } from './components/dialogs/PasswordDialog'
 import { NewNodeDialog } from './components/dialogs/NewNodeDialog'
 import { EdgeDialog } from './components/dialogs/EdgeDialog'
 import { InfoPanel } from './components/dialogs/InfoPanel'
+import { AcknowledgementsPanel } from './components/dialogs/AcknowledgementsPanel'
 import { FileExplorer } from './components/dialogs/FileExplorer'
 import { ContentEditor } from './components/editor/ContentEditor'
 import { CaseBoard } from './components/canvas/CaseBoard'
@@ -87,6 +90,7 @@ import {
   NotebookPen,
   Map,
   FileStack,
+  Heart,
 } from 'lucide-react'
 import { SaveIndicator } from './components/SaveIndicator'
 import type { CaseManifest, NodeType, DocumentRef } from './types'
@@ -108,6 +112,7 @@ type MainView = 'board' | 'notes' | 'map' | 'pdf'
 interface ToolbarProps {
   onSearch: () => void
   onInfo: () => void
+  onAcknowledgements: () => void
   onFiles: () => void
   onPlay: () => void
   onBoard: () => void
@@ -158,6 +163,7 @@ function ToolbarButton({
 function Toolbar({
   onSearch,
   onInfo,
+  onAcknowledgements,
   onFiles,
   onPlay,
   onBoard,
@@ -246,6 +252,10 @@ function Toolbar({
               <HelpCircle size={13} />
               About
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={onAcknowledgements}>
+              <Heart size={13} />
+              Acknowledgements
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={onCloseCase}>
               <FolderClosed size={13} />
               Close Case
@@ -331,6 +341,11 @@ function Toolbar({
         icon={<HelpCircle size={14} />}
       />
       <ToolbarButton
+        onClick={onAcknowledgements}
+        title="Acknowledgements & credits"
+        icon={<Heart size={14} />}
+      />
+      <ToolbarButton
         onClick={onCloseCase}
         title="Close case — return to Case Files"
         icon={<FolderClosed size={14} />}
@@ -392,6 +407,7 @@ function AppInner() {
   } | null>(null)
   const [showSearch, setShowSearch] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
+  const [showAcknowledgements, setShowAcknowledgements] = useState(false)
   const [showFiles, setShowFiles] = useState(false)
   const [showPlay, setShowPlay] = useState(false)
   const [showMapView, setShowMapView] = useState(false)
@@ -433,6 +449,7 @@ function AppInner() {
         setShowSearch(false)
         setCtxMenu(null)
         setShowInfo(false)
+        setShowAcknowledgements(false)
         setShowFiles(false)
         setShowSettings(false)
       }
@@ -474,6 +491,25 @@ function AppInner() {
       useCaseSettingsStore.getState().load(data.settings)
       usePdfLibraryStore.getState().load(data.pdfEmbeds)
       ingestAssets(data.assets)
+      // PDF bytes never live in the .citr file itself — they're kept in this
+      // browser's IndexedDB (see usePdfImport). Pull each embed's bytes in
+      // from there; if a legacy .citr still has them zipped into assets/
+      // (from before this separation existed), migrate them into IndexedDB
+      // now so they're excluded from the zip on the next save.
+      await Promise.all(
+        data.pdfEmbeds.map(async (embed) => {
+          const legacyBuffer = assetMap.get(embed.assetId)
+          if (legacyBuffer) {
+            await savePdfBlobToIDB(embed.assetId, legacyBuffer)
+            return
+          }
+          const buffer = await getPdfBlobFromIDB(embed.assetId)
+          if (buffer) {
+            assetMap.set(embed.assetId, buffer)
+            cacheAsset(embed.assetId, buffer, 'application/pdf')
+          }
+        }),
+      )
       useBacklinksStore.getState().seed(data.backlinks)
       setSaveStatus('saved')
       setIsOpen(true)
@@ -958,6 +994,7 @@ function AppInner() {
       <Toolbar
         onSearch={() => setShowSearch((v) => !v)}
         onInfo={() => setShowInfo(true)}
+        onAcknowledgements={() => setShowAcknowledgements(true)}
         onFiles={() => setShowFiles(true)}
         onPlay={() => setShowPlay((v) => !v)}
         onBoard={() => {
@@ -1158,6 +1195,10 @@ function AppInner() {
       )}
 
       {showInfo && <InfoPanel onClose={() => setShowInfo(false)} />}
+
+      {showAcknowledgements && (
+        <AcknowledgementsPanel onClose={() => setShowAcknowledgements(false)} />
+      )}
 
       <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
 

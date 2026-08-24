@@ -34,6 +34,7 @@ import { PlayingCardView } from '../play/PlayingCard'
 import type { NodeAttachment, DocumentRef } from '../../types'
 import { CASE_NOTES_ID, clueCardsOf } from '../../types'
 import type { ThreatKind, Suit } from '../../game/types'
+import { useIsMobile } from '../../hooks/use-mobile'
 
 interface Props {
   nodeId: string
@@ -55,6 +56,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export function NodePanel({ nodeId, onClose, onOpenDocument }: Props) {
+  const isMobile = useIsMobile()
   const node = useGraphStore((s) => s.nodes[nodeId])
   const updateNode = useGraphStore((s) => s.updateNode)
   const deleteNode = useGraphStore((s) => s.deleteNode)
@@ -158,7 +160,13 @@ export function NodePanel({ nodeId, onClose, onOpenDocument }: Props) {
         : `${(b / 1048576).toFixed(1)}MB`
 
   return (
-    <div className="flex flex-col bg-card border-border border-l w-80 h-full overflow-hidden shrink-0">
+    <div
+      className={
+        isMobile
+          ? 'fixed inset-0 z-50 flex flex-col bg-card w-full h-full overflow-hidden'
+          : 'flex flex-col bg-card border-border border-l w-80 h-full overflow-hidden shrink-0'
+      }
+    >
       {/* Header */}
       <div className="flex justify-between items-center px-4 py-2.5 border-border border-b shrink-0">
         <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">

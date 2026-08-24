@@ -70,35 +70,6 @@ export function InfoPanel({ onClose }: Props) {
       }
       footer={<Button onClick={onClose}>Close</Button>}
     >
-      <Section icon={<Layers size={14} />} title="Caught in the Rain">
-        <p className="text-[12px] text-muted-foreground leading-relaxed">
-          This is an unoffical companion app and is not affiliated with Caught
-          in the Rain, Nicholas Robinia or{' '}
-          <a
-            className="text-primary"
-            href="https://theravensridgeemporium.com/"
-            target="_blank"
-            rel="norefferer noopenner"
-          >
-            The Ravens Ridge Emporium
-          </a>
-        </p>
-        <p className="mt-2 text-[12px] text-muted-foreground leading-relaxed">
-          I am currently seeking permission from Nicholas to share this app. If
-          you are the rights holder, and you find this before authorisation has
-          been saught, raise an issue on{' '}
-          <a
-            className="text-primary"
-            href="https://github.com/gcoulby/citr-companion/"
-            target="_blank"
-            rel="norefferer noopenner"
-          >
-            GitHub
-          </a>{' '}
-          and I will promptly remove the app.
-        </p>
-      </Section>
-
       <Section icon={<Layers size={14} />} title="What is this?">
         <p className="text-[12px] text-muted-foreground leading-relaxed">
           A companion app for{' '}
@@ -115,21 +86,10 @@ export function InfoPanel({ onClose }: Props) {
           Think of the board as a digital version of the detective's evidence
           board: nodes are index cards, edges are the red threads between them.
         </p>
-      </Section>
-
-      <Section icon={<Layers size={14} />} title="Trace Note">
-        <p className="text-[12px] text-muted-foreground leading-relaxed">
-          This app is forked from an OSINT tool I was experimenting with{' '}
-          <a
-            className="text-primary"
-            href="https://github.com/gcoulby/trace-note/"
-            target="_blank"
-            rel="norefferer noopenner"
-          >
-            Trace Note
-          </a>
-          If you're interested in the detective board aspects for more serious
-          applications you should check that first.
+        <p className="mt-2 text-[12px] text-muted-foreground leading-relaxed">
+          This is an unofficial companion app, shared with the game's
+          author's permission — see the Acknowledgements page (top right) for
+          credits and details.
         </p>
       </Section>
 
@@ -228,8 +188,9 @@ export function InfoPanel({ onClose }: Props) {
             clue/truth decks, incl. the sealed truth cards
           </div>
           <div>
-            <span className="text-emerald-500">assets/</span> — thumbnails,
-            attached images and PDFs
+            <span className="text-emerald-500">assets/</span> — thumbnails and
+            attached images. Rulebook/handout PDFs are kept separately in
+            browser storage, not in this file — see Acknowledgements.
           </div>
           <div>
             <span className="text-emerald-500">content/</span> — rich text

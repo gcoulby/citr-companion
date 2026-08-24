@@ -6,6 +6,7 @@ import { ResolveTab } from './ResolveTab'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs'
 import { Button } from '../ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useIsMobile } from '../../hooks/use-mobile'
 
 const TABS = [
   { id: 'investigator', label: 'Investigator' },
@@ -20,8 +21,15 @@ interface Props {
 }
 
 export function PlayPanel({ onClose, onSelectNode }: Props) {
+  const isMobile = useIsMobile()
   return (
-    <div className="flex flex-col bg-card border-border border-l w-96 h-full overflow-hidden shrink-0">
+    <div
+      className={
+        isMobile
+          ? 'fixed inset-0 z-50 flex flex-col bg-card w-full h-full overflow-hidden'
+          : 'flex flex-col bg-card border-border border-l w-96 h-full overflow-hidden shrink-0'
+      }
+    >
       <div className="flex justify-between items-center px-4 py-2.5 border-border border-b shrink-0">
         <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
           Play
