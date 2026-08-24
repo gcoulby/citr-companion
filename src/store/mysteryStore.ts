@@ -49,6 +49,21 @@ function syncBoardClueNode(cs: ClueSet) {
   useGraphStore.getState().updateNode(cs.boardNodeId, { clue: { rank: cs.rank, status: cs.status, cards: cs.cards } });
 }
 
+// Every clue drawn should be visible on the board without a separate manual
+// step — a clue set's first card creates its node immediately; later cards
+// just keep that node's card list in sync (syncBoardClueNode above).
+function newClueBoardNodeId(rank: ClueRank, card: PlayingCard): string {
+  return useGraphStore.getState().addNode({
+    label: `Clue ${rank}`,
+    summary: '',
+    tags: [],
+    hasContent: false,
+    properties: {},
+    nodeType: 'clue',
+    clue: { rank, status: 'established', cards: [card] },
+  }).id;
+}
+
 export type ClueDrawResult =
   | { kind: 'empty' }
   | { kind: 'established'; rank: ClueRank }
@@ -82,6 +97,7 @@ interface MysteryStoreState extends Mystery {
   addThreat: (level: 1 | 2 | 3, kind?: ThreatKind, name?: string) => string;
   renameThreat: (threatId: string, name: string) => void;
   updateThreat: (threatId: string, patch: Partial<Pick<ThreatEntry, 'level' | 'kind'>>) => void;
+  defeatThreat: (threatId: string) => void;
 
   // ── Clue deck ──────────────────────────────────────────────────────────
   drawClueCard: () => ClueDrawResult;
@@ -311,6 +327,11 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => {
   updateThreat: (threatId, patch) =>
     set((s) => ({ threats: s.threats.map((t) => (t.id === threatId ? { ...t, ...patch } : t)) })),
 
+  // "Eliminate a threat" keyword action (p.31) — removes it from the scene
+  // as if it had been defeated normally.
+  defeatThreat: (threatId) =>
+    set((s) => ({ threats: s.threats.map((t) => (t.id === threatId ? { ...t, defeated: true } : t)) })),
+
   // ── Clue deck ─────────────────────────────────────────────────────────
 
   drawClueCard: () => {
@@ -350,7 +371,8 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => {
         syncBoardClueNode(updated);
         result = { kind: 'strengthened', rank };
       } else {
-        clueSets = { ...clueSets, [rank]: { id: rank, rank, description: '', cards: [card], status: 'established' } };
+        const boardNodeId = newClueBoardNodeId(rank, card);
+        clueSets = { ...clueSets, [rank]: { id: rank, rank, description: '', cards: [card], status: 'established', boardNodeId } };
         set({ clueDeck: deck, clueDiscard: discard, clueSets });
         result = { kind: 'established', rank };
       }
@@ -391,7 +413,8 @@ export const useMysteryStore = create<MysteryStoreState>((set, get) => {
       return { kind: 'strengthened', rank: clueRank };
     }
 
-    set({ clueSets: { ...clueSets, [clueRank]: { id: clueRank, rank: clueRank, description: '', cards: [card], status: 'established' } } });
+    const boardNodeId = newClueBoardNodeId(clueRank, card);
+    set({ clueSets: { ...clueSets, [clueRank]: { id: clueRank, rank: clueRank, description: '', cards: [card], status: 'established', boardNodeId } } });
     return { kind: 'established', rank: clueRank };
   },
 

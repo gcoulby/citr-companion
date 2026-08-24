@@ -84,6 +84,16 @@ export function rollSubjectOracle(): SubjectOracleResult {
   };
 }
 
+// Physical-dice mode for the subject oracle — three d66s (one per table)
+// supplied by the caller instead of rolled here.
+export function subjectOracleFromRolls(action: D66Roll, descriptor: D66Roll, focus: D66Roll): SubjectOracleResult {
+  return {
+    action: oracleResultFromRoll(ACTION_TABLE, action),
+    descriptor: oracleResultFromRoll(DESCRIPTOR_TABLE, descriptor),
+    focus: oracleResultFromRoll(FOCUS_TABLE, focus),
+  };
+}
+
 // ── General random tables (p.63-68) — names, traits, motivations, treachery ─
 
 export const FIRST_NAME_TABLE: OracleTable = {

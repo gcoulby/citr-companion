@@ -4,6 +4,10 @@ import type { InvestigationStage } from '../../../game/types';
 export interface InvestigationStageRecord {
   stage: InvestigationStage;
   label: string;
+  /** Hand-written "why"/"what happened" answer for this stage — captured
+   *  live during play, shown prominently. */
+  narrative: string;
+  /** Mechanical roll-by-roll detail for this stage — shown collapsed. */
   lines: string[];
 }
 
@@ -69,13 +73,25 @@ export const investigationRecordBlockFactory = createReactBlockSpec(
           )}
 
           {data.stages.length > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {data.stages.map((s) => (
-                <div key={s.stage}>
+                <div key={s.stage} className="pl-2 border-l border-border">
                   <div className="text-[10px] text-muted-foreground/70 mb-0.5">{s.label}</div>
-                  <div className="text-[12px] text-foreground/90 space-y-0.5 pl-2 border-l border-border">
-                    {s.lines.map((line, i) => <div key={i}>{line}</div>)}
-                  </div>
+                  {s.narrative ? (
+                    <div className="text-[13px] text-foreground/90 whitespace-pre-line">{s.narrative}</div>
+                  ) : (
+                    <div className="text-[11px] text-muted-foreground/50 italic">No notes written.</div>
+                  )}
+                  {s.lines.length > 0 && (
+                    <details className="mt-1">
+                      <summary className="text-[10px] text-muted-foreground/60 cursor-pointer select-none hover:text-muted-foreground">
+                        Show details
+                      </summary>
+                      <div className="mt-1 space-y-0.5 text-[11px] font-mono text-muted-foreground">
+                        {s.lines.map((line, i) => <div key={i}>{line}</div>)}
+                      </div>
+                    </details>
+                  )}
                 </div>
               ))}
             </div>

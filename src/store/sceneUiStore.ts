@@ -8,7 +8,7 @@
 // investigatorStore as always.
 
 import { create } from 'zustand';
-import type { Attribute, InvestigationStage, PlayingCard } from '../game/types';
+import type { Attribute, ClueRank, InvestigationStage, PlayingCard } from '../game/types';
 import type { AttributeTestResult, ConsequenceRollResult, InvestigationRollResult } from '../game/dice';
 import type { SubjectOracleResult } from '../game/oracles';
 
@@ -27,7 +27,9 @@ export interface InvestigationUiState {
   // summary can show deltas (danger/fatigue/clues gained over the scene).
   startedAt: { day: number; danger: number; fatigue: number; clueCount: number };
   roll: InvestigationRollResult | null;
-  threatNaming: boolean; // show "name this threat" after a threat-introducing roll
+  // Non-empty (a threat id) shows "name this threat" — after the initial
+  // threat-introducing roll, before any stage attempt exists yet.
+  threatNaming: string;
   log: InvestigationLogLine[]; // narrative lines, becomes the Field Notes draft text
 
   // Current stage attempt — reset each time a new attribute test begins.
@@ -39,9 +41,30 @@ export interface InvestigationUiState {
   keywordAdded: boolean;
   consequence: ConsequenceRollResult | null;
   stageClueDrawn: boolean; // the stage's own "discover a clue" effect (Acquisition)
+  stageClueRank: ClueRank | ''; // which clue set the stage draw landed in, so its card + note box can be shown inline
   bonusClueDrawn: boolean; // the 10+ "gain a bonus clue" effect (any stage)
+  bonusClueRank: ClueRank | '';
   threatResults: { threatId: string; roll: ConsequenceRollResult }[];
   fatigueInterrupted: boolean;
+
+  // Stages actually completed this scene — the phase tracker uses this
+  // instead of comparing stage indices, since a fatigue interrupt can jump
+  // straight to Escape leaving Infiltration/Discovery/Acquisition never
+  // completed even though Escape (a later stage) was.
+  completedStages: InvestigationStage[];
+
+  // Hand-written "why"/"what happened" answers, one per stage — captured
+  // from `wayPrompt` the moment each stage completes (or from
+  // `forcedEscapeNote` when fatigue forces the jump to Escape), so the story
+  // is written during play instead of reconstructed afterward from the roll
+  // log. This is the per-stage narrative shown prominently in Field Notes;
+  // `log` stays the mechanical roll-by-roll record shown collapsed.
+  stageNotes: Partial<Record<InvestigationStage, string>>;
+
+  // Fatigue filled mid-stage: instead of silently jumping to Escape, pause
+  // here so the player can say why their investigator was forced to flee.
+  awaitingForcedEscape: boolean;
+  forcedEscapeNote: string;
 
   ended: boolean; // Escape/Acquisition completed — showing the end-of-scene summary
   // The stage the scene actually ended at, snapshotted at the moment it ends
@@ -55,7 +78,7 @@ function emptyInvestigationUi(day: number, danger: number, fatigue: number, clue
   return {
     startedAt: { day, danger, fatigue, clueCount },
     roll: null,
-    threatNaming: false,
+    threatNaming: '',
     log: [],
     attribute: 'insight',
     test: null,
@@ -65,9 +88,15 @@ function emptyInvestigationUi(day: number, danger: number, fatigue: number, clue
     keywordAdded: false,
     consequence: null,
     stageClueDrawn: false,
+    stageClueRank: '',
     bonusClueDrawn: false,
+    bonusClueRank: '',
     threatResults: [],
     fatigueInterrupted: false,
+    completedStages: [],
+    stageNotes: {},
+    awaitingForcedEscape: false,
+    forcedEscapeNote: '',
     ended: false,
     finalStage: '',
     fieldNotesText: '',
@@ -142,7 +171,9 @@ export const useSceneUiStore = create<SceneUiStoreState>((set) => ({
               keywordAdded: false,
               consequence: null,
               stageClueDrawn: false,
+              stageClueRank: '',
               bonusClueDrawn: false,
+              bonusClueRank: '',
               threatResults: [],
             },
           }
